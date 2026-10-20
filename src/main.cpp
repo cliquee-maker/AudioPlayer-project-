@@ -1,34 +1,26 @@
-#include <imgui.h>
-#include <imgui-SFML.h>
+#include <QApplication>
+#include <QLabel>
+#include <QMainWindow>
+#include <QPushButton>
+#include <QVBoxLayout>
 
-#include <SFML/Graphics/RenderWindow.hpp>
-#include <SFML/System/Clock.hpp>
-#include <SFML/Window/Event.hpp>
+int main(int argc, char* argv[]) {
+    QApplication app(argc, argv);
 
-int main() {
-    sf::RenderWindow window(sf::VideoMode({1280u, 720u}), "Audio Player - ImGui smoke");
-    window.setFramerateLimit(60);
-    if (!ImGui::SFML::Init(window))
-        return 1;
+    QMainWindow window;
+    window.setWindowTitle("Audio Player - Qt smoke");
+    window.resize(640, 360);
 
-    sf::Clock deltaClock;
-    while (window.isOpen()) {
-        while (const auto event = window.pollEvent()) {
-            ImGui::SFML::ProcessEvent(window, *event);
-            if (event->is<sf::Event::Closed>())
-                window.close();
-        }
+    auto* central = new QWidget(&window);
+    auto* layout = new QVBoxLayout(central);
 
-        ImGui::SFML::Update(window, deltaClock.restart());
+    auto* label = new QLabel("Qt 6 Widgets smoke test", central);
+    auto* button = new QPushButton("Click me", central);
+    layout->addWidget(label);
+    layout->addWidget(button);
 
-        ImGui::Begin("Smoke test");
-        ImGui::Text("SFML 3.1 + Dear ImGui + ImGui-SFML v3.0");
-        ImGui::Button("Click me");
-        ImGui::End();
+    window.setCentralWidget(central);
+    window.show();
 
-        window.clear();
-        ImGui::SFML::Render(window);
-        window.display();
-    }
-    ImGui::SFML::Shutdown();
+    return app.exec();
 }
