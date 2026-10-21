@@ -41,6 +41,79 @@
 
 ---
 
+##🛠 Сборка на Linux и Windows
+
+`CMakeLists.txt` одинаковый для обеих ОС: зависимости берутся из системных пакетов
+(Linux) или из **vcpkg** (Windows), а если их нет — достраиваются из исходников
+через `FetchContent` (`-DAUDIOPLAYER_FETCH_DEPS=ON`, включено по умолчанию).
+
+### Linux (Arch / Manjaro)
+
+```bash
+sudo pacman -S --needed base-devel cmake qt6-base taglib nlohmann-json
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build -j$(nproc)
+./build/app
+```
+
+### Windows (MSVC + vcpkg + Qt)
+
+1. Установить [vcpkg](https://vcpkg.io) и Qt 6 через
+   [aqtinstall](https://github.com/microsoft/aqtinstall) (единственный способ,
+   работающий одинаково на Windows и Linux):
+
+   ```powershell
+   pip install aqtinstall
+   pip install pyside6-essentials   # необязательно, только для aqt
+   aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -m qtmultimedia
+   ```
+   Путь к установленному Qt (`...\6.8.3\msvc2022_64`) сохраните в переменную
+   окружения `QT_ROOT_DIR`.
+
+2. Установить зависимости через vcpkg (файл `vcpkg.json` уже в проекте):
+
+   ```powershell
+   set VCPKG_ROOT=C:\vcpkg
+   git clone https://github.com/microsoft/vcpkg C:\vcpkg
+   C:\vcpkg\bootstrap-vcpkg.bat
+   C:\vcpkg\vcpkg install            # подтянет qt6-base, taglib, nlohmann-json
+   ```
+
+3. Сконфигурировать и собрать (MSVC: «Developer PowerShell for VS 2022»):
+
+   ```powershell
+   cmake -S . -B build -G Ninja ^
+     -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+     -DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR ^
+     -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   cmake --build build
+   ```
+
+   Либо готовым пресетом: `cmake --preset windows-msvc && cmake --build --preset windows-msvc`.
+
+4. Чтобы DLL Qt рядом с `.exe`:
+
+   ```powershell
+   & $env:QT_ROOT_DIR\bin\windeployqt.exe build\app.exe
+   ```
+
+### Пресеты CMake
+
+```bash
+cmake --preset linux-system   && cmake --build --preset linux-system
+cmake --preset windows-msvc   && cmake --build --preset windows-msvc
+```
+
+### Правила кода, чтобы проект собирался на обеих ОС
+
+* Пути к файлам — через `QDir`/`QFileInfo`/`std::filesystem`, а не через `/` в строках.
+* Ассеты (обложки, пресеты) ищем через `AUDIOPLAYER_ASSETS_DIR` (макрос из CMake),
+  а не относительно текущего каталога.
+* Никаких Linux-only вызовов (`unistd.h`, `pthread` в коде) без `#ifdef Q_OS_WIN`.
+* Разделитель путей — `QDir::separator()` / `std::filesystem::path`.
+
+---
+
 ## 👥 Распределение задач и зон ответственности
 
 > Замените заглушки на реальные имена — зоны ответственности разбиты по фактическим модулям проекта (`core/`, `audio/`, `library/`, `gui/`).

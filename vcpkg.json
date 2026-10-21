@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "dependencies": [
+    "nlohmann-json",
+    "taglib",
+    {
+      "name": "qt6-base",
+      "features": ["multimedia", "widgets"]
+    }
+  ],
+  "builtin-baseline": "b322364f06308bdd24823f9d8f03fe0d859b03a"
+}
