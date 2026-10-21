@@ -58,25 +58,34 @@ cmake --build build -j$(nproc)
 
 ### Windows (MSVC + vcpkg + Qt)
 
-1. Установить [vcpkg](https://vcpkg.io) и Qt 6 через
-   [aqtinstall](https://github.com/microsoft/aqtinstall) (единственный способ,
-   работающий одинаково на Windows и Linux):
+1. **Скачать Qt 6** — два рабочих способа (см. подробности ниже):
+
+   * **Официальный установщик** (нужен бесплатный аккаунт на qt.io):
+     <https://www.qt.io/download-qt-installer> → «Download Qt Installer» →
+     при установке отметить **Qt 6.x → Desktop → MSVC 2022 64-bit** и
+     дополнительно **Qt Multimedia** (это наш модуль `Qt6::Multimedia`).
+   * **aqtinstall** (без аккаунта, из консоли):
+
+     ```powershell
+     pip install aqtinstall
+     aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -m qtmultimedia
+     ```
+
+   В обоих случаях запоминаем путь к Qt (например `C:\Qt\6.8.3\msvc2022_64`)
+   и сохраняем его в переменную окружения:
 
    ```powershell
-   pip install aqtinstall
-   pip install pyside6-essentials   # необязательно, только для aqt
-   aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -m qtmultimedia
+   setx QT_ROOT_DIR "C:\Qt\6.8.3\msvc2022_64"
    ```
-   Путь к установленному Qt (`...\6.8.3\msvc2022_64`) сохраните в переменную
-   окружения `QT_ROOT_DIR`.
 
-2. Установить зависимости через vcpkg (файл `vcpkg.json` уже в проекте):
+2. Установить остальные зависимости через [vcpkg](https://vcpkg.io)
+   (файл `vcpkg.json` уже в проекте — Qt из vcpkg ставить не нужно):
 
    ```powershell
    set VCPKG_ROOT=C:\vcpkg
    git clone https://github.com/microsoft/vcpkg C:\vcpkg
    C:\vcpkg\bootstrap-vcpkg.bat
-   C:\vcpkg\vcpkg install            # подтянет qt6-base, taglib, nlohmann-json
+   C:\vcpkg\vcpkg install            # подтянет taglib и nlohmann-json
    ```
 
 3. Сконфигурировать и собрать (MSVC: «Developer PowerShell for VS 2022»):
@@ -91,11 +100,23 @@ cmake --build build -j$(nproc)
 
    Либо готовым пресетом: `cmake --preset windows-msvc && cmake --build --preset windows-msvc`.
 
-4. Чтобы DLL Qt рядом с `.exe`:
+4. Чтобы DLL Qt оказались рядом с `.exe` (иначе приложение не запустится
+   на машине без Qt):
 
    ```powershell
    & $env:QT_ROOT_DIR\bin\windeployqt.exe build\app.exe
    ```
+
+> **Важно про версии Qt:** у вас с друзьями может быть разная версия Qt
+> (6.8.3 против 6.5.x). Проект собирается с любой Qt 6.x — в `CMakeLists.txt`
+> стоит `find_package(Qt6 ...)` без жёсткой версии. Если вдруг не хватает
+> модуля Multimedia — доустановите его в Qt Maintenance Tool
+> (шестерёнка → «Qt Multimedia»).
+
+> **Что делает `FetchContent`:** если `taglib` или `nlohmann-json` не найдены
+> в vcpkg/системе, CMake сам скачает их исходники и соберёт
+> (интернет нужен только при первой конфигурации). Отключить:
+> `-DAUDIOPLAYER_FETCH_DEPS=OFF`.
 
 ### Пресеты CMake
 
