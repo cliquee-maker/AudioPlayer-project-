@@ -41,6 +41,100 @@
 
 ---
 
+##🛠 Сборка на Linux и Windows
+
+`CMakeLists.txt` одинаковый для обеих ОС: зависимости берутся из системных пакетов
+(Linux) или из **vcpkg** (Windows), а если их нет — достраиваются из исходников
+через `FetchContent` (`-DAUDIOPLAYER_FETCH_DEPS=ON`, включено по умолчанию).
+
+### Linux (Arch / Manjaro)
+
+```bash
+sudo pacman -S --needed base-devel cmake qt6-base taglib nlohmann-json
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build -j$(nproc)
+./build/app
+```
+
+### Windows (MSVC + vcpkg + Qt)
+
+1. **Скачать Qt 6** — два рабочих способа (см. подробности ниже):
+
+   * **Официальный установщик** (нужен бесплатный аккаунт на qt.io):
+     <https://www.qt.io/download-qt-installer> → «Download Qt Installer» →
+     при установке отметить **Qt 6.x → Desktop → MSVC 2022 64-bit** и
+     дополнительно **Qt Multimedia** (это наш модуль `Qt6::Multimedia`).
+   * **aqtinstall** (без аккаунта, из консоли):
+
+     ```powershell
+     pip install aqtinstall
+     aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -m qtmultimedia
+     ```
+
+   В обоих случаях запоминаем путь к Qt (например `C:\Qt\6.8.3\msvc2022_64`)
+   и сохраняем его в переменную окружения:
+
+   ```powershell
+   setx QT_ROOT_DIR "C:\Qt\6.8.3\msvc2022_64"
+   ```
+
+2. Установить остальные зависимости через [vcpkg](https://vcpkg.io)
+   (файл `vcpkg.json` уже в проекте — Qt из vcpkg ставить не нужно):
+
+   ```powershell
+   set VCPKG_ROOT=C:\vcpkg
+   git clone https://github.com/microsoft/vcpkg C:\vcpkg
+   C:\vcpkg\bootstrap-vcpkg.bat
+   C:\vcpkg\vcpkg install            # подтянет taglib и nlohmann-json
+   ```
+
+3. Сконфигурировать и собрать (MSVC: «Developer PowerShell for VS 2022»):
+
+   ```powershell
+   cmake -S . -B build -G Ninja ^
+     -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+     -DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR ^
+     -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   cmake --build build
+   ```
+
+   Либо готовым пресетом: `cmake --preset windows-msvc && cmake --build --preset windows-msvc`.
+
+4. Чтобы DLL Qt оказались рядом с `.exe` (иначе приложение не запустится
+   на машине без Qt):
+
+   ```powershell
+   & $env:QT_ROOT_DIR\bin\windeployqt.exe build\app.exe
+   ```
+
+> **Важно про версии Qt:** у вас с друзьями может быть разная версия Qt
+> (6.8.3 против 6.5.x). Проект собирается с любой Qt 6.x — в `CMakeLists.txt`
+> стоит `find_package(Qt6 ...)` без жёсткой версии. Если вдруг не хватает
+> модуля Multimedia — доустановите его в Qt Maintenance Tool
+> (шестерёнка → «Qt Multimedia»).
+
+> **Что делает `FetchContent`:** если `taglib` или `nlohmann-json` не найдены
+> в vcpkg/системе, CMake сам скачает их исходники и соберёт
+> (интернет нужен только при первой конфигурации). Отключить:
+> `-DAUDIOPLAYER_FETCH_DEPS=OFF`.
+
+### Пресеты CMake
+
+```bash
+cmake --preset linux-system   && cmake --build --preset linux-system
+cmake --preset windows-msvc   && cmake --build --preset windows-msvc
+```
+
+### Правила кода, чтобы проект собирался на обеих ОС
+
+* Пути к файлам — через `QDir`/`QFileInfo`/`std::filesystem`, а не через `/` в строках.
+* Ассеты (обложки, пресеты) ищем через `AUDIOPLAYER_ASSETS_DIR` (макрос из CMake),
+  а не относительно текущего каталога.
+* Никаких Linux-only вызовов (`unistd.h`, `pthread` в коде) без `#ifdef Q_OS_WIN`.
+* Разделитель путей — `QDir::separator()` / `std::filesystem::path`.
+
+---
+
 ## 👥 Распределение задач и зон ответственности
 
 > Замените заглушки на реальные имена — зоны ответственности разбиты по фактическим модулям проекта (`core/`, `audio/`, `library/`, `gui/`).

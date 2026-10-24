@@ -1,0 +1,47 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/build/${presetName}/install",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "AUDIOPLAYER_FETCH_DEPS": "ON"
+      }
+    },
+    {
+      "name": "linux-system",
+      "inherits": "base",
+      "displayName": "Linux (системные пакеты: pacman/apt)",
+      "description": "Qt6/TagLib/nlohmann-json из дистрибутива",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+    {
+      "name": "windows-msvc",
+      "inherits": "base",
+      "displayName": "Windows (MSVC + vcpkg + Qt из aqtinstall)",
+      "description": "Нужно указать путь к vcpkg и к Qt6 через CMAKE_PREFIX_PATH",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "CMAKE_PREFIX_PATH": "$env{QT_ROOT_DIR}"
+      }
+    },
+    {
+      "name": "windows-mingw",
+      "inherits": "base",
+      "displayName": "Windows (MinGW-w64, без Visual Studio)",
+      "generator": "Ninja",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "linux-system", "configurePreset": "linux-system" },
+    { "name": "windows-msvc", "configurePreset": "windows-msvc" },
+    { "name": "windows-mingw", "configurePreset": "windows-mingw" }
+  ]
+}
