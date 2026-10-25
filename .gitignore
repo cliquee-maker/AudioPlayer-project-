@@ -4,3 +4,5 @@ compile_commands.json
 imgui.ini
 GUI_PLAN.md
 .clangd
+AGENT_PROMPT.md
+INTERFACE_PLAN.md
