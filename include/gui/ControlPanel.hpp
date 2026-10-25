@@ -19,6 +19,10 @@ public slots:
     void next();
     void prev();
     void handleMediaFinished();
+    void setEffectName(const QString& name);
+
+signals:
+    void nextEffectRequested();
 
 private slots:
     void onStateChanged(bool playing);
@@ -42,6 +46,7 @@ private:
     QToolButton* stopBtn_;
     QToolButton* nextBtn_;
     QPushButton* repeatBtn_;
+    QPushButton* effectBtn_;
     QCheckBox* shuffleBox_;
     QSlider* seekSlider_;
     QSlider* volumeSlider_;

@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <functional>
 
+#include <audioproperties.h>
+#include <fileref.h>
+
 // Временная заглушка вместо src/audio/AudioEngine.cpp — убирается, когда
 // Никита принесёт настоящую реализацию на QMediaPlayer/QAudioOutput.
 
@@ -33,8 +36,17 @@ bool AudioEngine::open(const std::filesystem::path& file) {
     playing_ = false;
     tick_->stop();
     positionMs_ = 0;
-    const auto h = std::hash<std::string>{}(file.string());
-    durationMs_ = 120000 + static_cast<qint64>(h % 180001);  // 2..5 минут
+    // Реальная длительность из тега — та же, что в таблице библиотеки;
+    // для файлов без свойств запасная формула (2..5 минут).
+    durationMs_ = 0;
+    const TagLib::FileRef media(file.c_str());
+    if (!media.isNull() && media.audioProperties() != nullptr) {
+        durationMs_ = media.audioProperties()->lengthInMilliseconds();
+    }
+    if (durationMs_ <= 0) {
+        const auto h = std::hash<std::string>{}(file.string());
+        durationMs_ = 120000 + static_cast<qint64>(h % 180001);
+    }
     playing_ = resume;
     if (resume) tick_->start();
     emit durationChanged(durationMs_);

@@ -14,13 +14,16 @@ public:
     explicit SimulatedVisualSource(AudioEngine& engine);
 
     const std::vector<float>& bins() const override;
+    const std::vector<float>& waveform() const override;
     bool isPlaying() const override;
     float volume() const override;
     qint64 positionMs() const override;
+    qint64 durationMs() const override;
 
 private:
     AudioEngine& engine_;
     mutable std::vector<float> bins_;
+    mutable std::vector<float> waveform_;
     mutable QElapsedTimer clock_;
     mutable qint64 lastMs_ = -1;
 };

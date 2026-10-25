@@ -9,6 +9,7 @@
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
+    app.setOrganizationName(QStringLiteral("AudioPlayer"));
     app.setApplicationName(QStringLiteral("LOCAL AUDIO PLAYER"));
 
     AudioEngine engine;

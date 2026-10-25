@@ -7,10 +7,12 @@
 
 namespace {
 constexpr int kBins = 48;
+constexpr int kWaveformSamples = 256;
+constexpr double kPi = 3.14159265358979323846;
 }
 
 SimulatedVisualSource::SimulatedVisualSource(AudioEngine& engine)
-    : engine_(engine), bins_(kBins, 0.0f) {
+    : engine_(engine), bins_(kBins, 0.0f), waveform_(kWaveformSamples, 0.0f) {
     clock_.start();
 }
 
@@ -39,6 +41,25 @@ const std::vector<float>& SimulatedVisualSource::bins() const {
     return bins_;
 }
 
+const std::vector<float>& SimulatedVisualSource::waveform() const {
+    const double t = static_cast<double>(engine_.positionMs()) / 1000.0;
+    const float scale = engine_.isPlaying() ? engine_.volume() / 100.0f : 0.0f;
+
+    // Окно последних 50 мс: между кадрами окна соседние, поэтому волна
+    // непрерывно «бежит» вслед за позицией воспроизведения.
+    constexpr double kWindowSec = 0.05;
+    for (int j = 0; j < kWaveformSamples; ++j) {
+        const double u = static_cast<double>(j) / (kWaveformSamples - 1);
+        const double tau = t - kWindowSec * (1.0 - u);
+        const double s =
+            0.5 * std::sin(2.0 * kPi * 110.0 * tau + 1.7 * std::sin(2.0 * kPi * 0.8 * t)) +
+            0.3 * std::sin(2.0 * kPi * 220.0 * tau + 0.5 * std::sin(2.0 * kPi * 2.3 * t)) +
+            0.2 * std::sin(2.0 * kPi * 440.0 * tau + std::sin(2.0 * kPi * 5.1 * t));
+        waveform_[static_cast<std::size_t>(j)] = static_cast<float>(s) * scale;
+    }
+    return waveform_;
+}
+
 bool SimulatedVisualSource::isPlaying() const {
     return engine_.isPlaying();
 }
@@ -49,4 +70,8 @@ float SimulatedVisualSource::volume() const {
 
 qint64 SimulatedVisualSource::positionMs() const {
     return engine_.positionMs();
+}
+
+qint64 SimulatedVisualSource::durationMs() const {
+    return engine_.durationMs();
 }
