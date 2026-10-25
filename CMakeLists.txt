@@ -104,10 +104,45 @@ else()
     message(FATAL_ERROR "TagLib найден, но неизвестное имя таргета")
 endif()
 
-# --- Приложение (smoke-тест этапа 1) ---
-add_executable(app src/main.cpp)
-target_link_libraries(app PRIVATE
+# --- GUI (этап 3) ---
+# Контракты-заголовки (include/...) перечислены в источниках gui:
+# AUTOMOC сканирует только заголовки из sources таргета, так moc
+# сгенерируется ровно один раз и не будет дублей символов при линковке.
+add_library(gui STATIC
+    src/gui/ControlPanel.cpp
+    src/gui/MainWindow.cpp
+    src/gui/SimulatedVisualSource.cpp
+    src/gui/Visualizer.cpp
+    # Заголовки лежат в include/gui/, а не рядом с .cpp — перечисляем явно,
+    # иначе AUTOMOC их не найдёт и не будет vtable (Q_OBJECT).
+    include/gui/ControlPanel.hpp
+    include/gui/MainWindow.hpp
+    include/gui/Visualizer.hpp
+    include/gui/IVisualSource.hpp
+    include/gui/SimulatedVisualSource.hpp
+    include/audio/AudioEngine.hpp
+    include/library/Track.hpp
+    include/library/MusicLibrary.hpp
+    include/library/Playlist.hpp
+    include/stats/ListeningStats.hpp
+)
+target_include_directories(gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(gui PUBLIC
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia
+)
+
+# --- Приложение ---
+# src/stubs/*.cpp — временные реализации контрактов, пока команда
+# не принесла настоящие AudioEngine/MusicLibrary/Playlist/ListeningStats.
+add_executable(app
+    src/main.cpp
+    src/stubs/AudioEngineStub.cpp
+    src/stubs/MusicLibraryStub.cpp
+    src/stubs/PlaylistStub.cpp
+    src/stubs/ListeningStatsStub.cpp
+)
+target_link_libraries(app PRIVATE
+    gui
     nlohmann_json::nlohmann_json
     ${AUDIOPLAYER_TAGLIB_TARGET}
 )
@@ -122,5 +157,3 @@ if(WIN32)
     # GUI-приложение без консольного окна (уберите WIN32, если нужен вывод в консоль)
     set_target_properties(app PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
-
-# Этап 3: add_library(gui STATIC src/gui/*.cpp) — добавим, когда появятся файлы gui/

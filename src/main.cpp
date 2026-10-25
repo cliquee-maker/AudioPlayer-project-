@@ -1,25 +1,26 @@
 #include <QApplication>
-#include <QLabel>
-#include <QMainWindow>
-#include <QPushButton>
-#include <QVBoxLayout>
+
+#include "audio/AudioEngine.hpp"
+#include "gui/MainWindow.hpp"
+#include "library/MusicLibrary.hpp"
+#include "library/Playlist.hpp"
+#include "library/Track.hpp"
+#include "stats/ListeningStats.hpp"
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
+    app.setApplicationName(QStringLiteral("LOCAL AUDIO PLAYER"));
 
-    QMainWindow window;
-    window.setWindowTitle("Audio Player - Qt smoke");
-    window.resize(640, 360);
+    AudioEngine engine;
+    MusicLibrary library;
+    Playlist playlist;
+    ListeningStats stats;
 
-    auto* central = new QWidget(&window);
-    auto* layout = new QVBoxLayout(central);
+    library.scan(AUDIOPLAYER_ASSETS_DIR "/music");
+    for (const Track& track : library.tracks()) playlist.add(track);
+    if (playlist.size() > 0) playlist.setCurrentIndex(0);
 
-    auto* label = new QLabel("Qt 6 Widgets smoke test", central);
-    auto* button = new QPushButton("Click me", central);
-    layout->addWidget(label);
-    layout->addWidget(button);
-
-    window.setCentralWidget(central);
+    MainWindow window(engine, library, playlist, stats);
     window.show();
 
     return app.exec();
