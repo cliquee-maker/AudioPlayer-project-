@@ -177,7 +177,7 @@ void Visualizer::paintAuthentic(QPainter& painter) {
     const qreal glowAlpha = std::min(230.0, 50.0 + (90.0 + 90.0 * bass) * vol);
     QPen glow(QBrush(QColor(79, 140, 255, static_cast<int>(glowAlpha))), R * 0.035);
     painter.setPen(glow);
-    painter.setBrush(Qt::NoPen);
+    painter.setBrush(Qt::NoBrush);
     painter.drawEllipse(QPointF(cx, cy), R * 1.05 + bass * R * 0.04,
                         R * 1.05 + bass * R * 0.04);
 
