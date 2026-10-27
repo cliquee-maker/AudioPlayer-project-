@@ -8,8 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # --- Общие настройки (одинаково для Linux и Windows) ---
 if(MSVC)
     add_compile_options(/utf-8 /permissive- /Zc:__cplusplus)
-    # vcpkg x64-windows(-static): единый рантайм, чтобы не тянуть dll MinGW/VC
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # Рантайм оставляем динамическим (/MD, по умолчанию): Qt и vcpkg x64-windows
+    # собраны с ним же, а два разных рантайма в одном процессе — источник падений.
 else()
     add_compile_options(-Wall -Wextra)
 endif()
@@ -104,6 +104,15 @@ else()
     message(FATAL_ERROR "TagLib найден, но неизвестное имя таргета")
 endif()
 
+# --- Аудиодвижок (QMediaPlayer + QAudioOutput) ---
+# Отдельная библиотека: от неё зависят и GUI, и (позже) тесты.
+add_library(audio STATIC
+    src/audio/AudioEngine.cpp
+    include/audio/AudioEngine.hpp  # для AUTOMOC (Q_OBJECT)
+)
+target_include_directories(audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(audio PUBLIC Qt6::Core Qt6::Multimedia)
+
 # --- GUI (этап 3) ---
 # Контракты-заголовки (include/...) перечислены в источниках gui:
 # AUTOMOC сканирует только заголовки из sources таргета, так moc
@@ -129,7 +138,6 @@ add_library(gui STATIC
     include/gui/Visualizer.hpp
     include/gui/IVisualSource.hpp
     include/gui/SimulatedVisualSource.hpp
-    include/audio/AudioEngine.hpp
     include/library/Track.hpp
     include/library/MusicLibrary.hpp
     include/library/Playlist.hpp
@@ -137,15 +145,15 @@ add_library(gui STATIC
 )
 target_include_directories(gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(gui PUBLIC
+    audio
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia
 )
 
 # --- Приложение ---
 # src/stubs/*.cpp — временные реализации контрактов, пока команда
-# не принесла настоящие AudioEngine/MusicLibrary/Playlist/ListeningStats.
+# не принесла настоящие MusicLibrary/Playlist/ListeningStats.
 add_executable(app
     src/main.cpp
-    src/stubs/AudioEngineStub.cpp
     src/stubs/MusicLibraryStub.cpp
     src/stubs/PlaylistStub.cpp
     src/stubs/ListeningStatsStub.cpp
@@ -165,4 +173,24 @@ target_compile_definitions(app PRIVATE
 if(WIN32)
     # GUI-приложение без консольного окна (уберите WIN32, если нужен вывод в консоль)
     set_target_properties(app PROPERTIES WIN32_EXECUTABLE TRUE)
+
+    # После сборки кладём DLL Qt и плагины (в т.ч. FFmpeg-бэкенд Multimedia)
+    # рядом с app.exe — иначе он не запустится и не будет звука.
+    find_program(AUDIOPLAYER_WINDEPLOYQT windeployqt HINTS "${QT6_INSTALL_PREFIX}/bin")
+    if(AUDIOPLAYER_WINDEPLOYQT)
+        add_custom_command(TARGET app POST_BUILD
+            COMMAND "${AUDIOPLAYER_WINDEPLOYQT}" --no-translations --no-compiler-runtime
+                    --no-opengl-sw "$<TARGET_FILE:app>"
+            COMMENT "windeployqt: copying Qt DLLs next to app.exe")
+    else()
+        message(WARNING "windeployqt не найден — DLL Qt придётся копировать вручную")
+    endif()
+endif()
+
+# --- Тесты (ctest) ---
+# Сами тесты описываются в tests/CMakeLists.txt (add_executable + add_test),
+# подключаем папку, как только этот файл появится.
+enable_testing()
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+    add_subdirectory(tests)
 endif()
