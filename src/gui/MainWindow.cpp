@@ -3,16 +3,14 @@
 #include "audio/AudioEngine.hpp"
 #include "gui/ControlPanel.hpp"
 #include "gui/LibraryPanel.hpp"
+#include "gui/LyricsPanel.hpp"
+#include "gui/TrackInfoPanel.hpp"
 #include "gui/Visualizer.hpp"
 #include "library/MusicLibrary.hpp"
 #include "library/Playlist.hpp"
 #include "library/Track.hpp"
 #include "stats/ListeningStats.hpp"
 
-#include <QAction>
-#include <QDockWidget>
-#include <QMenu>
-#include <QMenuBar>
 #include <QVBoxLayout>
 
 MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& playlist,
@@ -31,6 +29,35 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
     control_ = new ControlPanel(engine_, playlist_, central);
     visualizer_ = new Visualizer(&visualSource_, central);
 
+    // Плейлист подхватывает содержимое библиотеки, пока пуст.
+    // Connect должен быть ДО создания LibraryPanel: его конструктор
+    // сканирует последнюю папку и сразу эмитит libraryChanged.
+    connect(&library_, &MusicLibrary::libraryChanged, this, [this] {
+        if (playlist_.size() > 0) return;
+        for (const Track& track : library_.tracks()) playlist_.add(track);
+        if (playlist_.size() > 0) playlist_.setCurrentIndex(0);
+    });
+
+    // Библиотека занимает пустой участок верхнего ряда (слева),
+    // справа — колонка «обложка + инфо» и под ней текст песни.
+    auto* libraryPanel = new LibraryPanel(library_, central);
+
+    // Правая колонка фиксированной ширины: текст переносится внутри поля,
+    // а не расширяет его.
+    auto* infoBox = new QWidget(central);
+    infoBox->setFixedWidth(260);
+    auto* infoColumn = new QVBoxLayout(infoBox);
+    infoColumn->setContentsMargins(0, 0, 0, 0);
+    infoColumn->setSpacing(8);
+    infoColumn->addWidget(new TrackInfoPanel(playlist_, infoBox), 0);
+    infoColumn->addWidget(new LyricsPanel(infoBox), 1);
+
+    auto* topRow = new QHBoxLayout;
+    topRow->setSpacing(10);
+    topRow->addWidget(libraryPanel, 1);
+    topRow->addWidget(infoBox, 0);
+
+    layout->addLayout(topRow, 1);
     layout->addWidget(visualizer_, 1);
     layout->addWidget(control_);
     setCentralWidget(central);
@@ -46,24 +73,6 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
         control_->setEffectName(visualizer_->modeName());
     });
     control_->setEffectName(visualizer_->modeName());
-
-    // Плейлист подхватывает содержимое библиотеки, пока пуст
-    connect(&library_, &MusicLibrary::libraryChanged, this, [this] {
-        if (playlist_.size() > 0) return;
-        for (const Track& track : library_.tracks()) playlist_.add(track);
-        if (playlist_.size() > 0) playlist_.setCurrentIndex(0);
-    });
-
-    // Боковая панель «Библиотека» (выбор папки + список треков)
-    auto* libraryPanel = new LibraryPanel(library_, this);
-    auto* dock = new QDockWidget(tr("Библиотека"), this);
-    dock->setObjectName(QStringLiteral("libraryDock"));
-    dock->setMinimumWidth(560);
-    dock->setWidget(libraryPanel);
-    addDockWidget(Qt::LeftDockWidgetArea, dock);
-
-    auto* viewMenu = menuBar()->addMenu(tr("Вид"));
-    viewMenu->addAction(dock->toggleViewAction());
 
     connect(libraryPanel, &LibraryPanel::trackActivated, this, [this](int index) {
         const auto& tracks = library_.tracks();
@@ -88,5 +97,5 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
     if (const Track* track = playlist_.current()) engine_.open(track->path);
 
     setWindowTitle(QStringLiteral("LOCAL AUDIO PLAYER"));
-    resize(1060, 580);
+    resize(760, 560);
 }
