@@ -10,7 +10,7 @@
 
 // Временная заглушка вместо src/audio/AudioEngine.cpp — убирается, когда
 // Никита принесёт настоящую реализацию на QMediaPlayer/QAudioOutput.
-
+// Да, никита перенесет
 AudioEngine::AudioEngine(QObject* parent) : QObject(parent) {
     tick_ = new QTimer(this);
     tick_->setInterval(100);
