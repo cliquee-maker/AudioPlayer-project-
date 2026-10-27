@@ -4,10 +4,8 @@
 #include "library/Playlist.hpp"
 #include "library/Track.hpp"
 
-#include <QCheckBox>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QPushButton>
 #include <QRandomGenerator>
 #include <QSlider>
 #include <QToolButton>
@@ -36,17 +34,25 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     nextBtn_ = new QToolButton(this);
     nextBtn_->setText(QStringLiteral("⏭"));
 
-    repeatBtn_ = new QPushButton(this);
-    effectBtn_ = new QPushButton(QStringLiteral("Эффект: Полосы"), this);
-    shuffleBox_ = new QCheckBox(QStringLiteral("Перемешать"), this);
+    repeatBtn_ = new QToolButton(this);
+    repeatBtn_->setText(QStringLiteral("↻"));
+    repeatBtn_->setCheckable(true);
+    repeatBtn_->setToolTip(tr("Повтор: выкл"));
+
+    effectBtn_ = new QToolButton(this);
+    effectBtn_->setText(QStringLiteral("✦"));
+    effectBtn_->setToolTip(tr("Эффект: Полосы"));
+
+    shuffleBtn_ = new QToolButton(this);
+    shuffleBtn_->setText(QStringLiteral("🔀"));
+    shuffleBtn_->setCheckable(true);
+    shuffleBtn_->setToolTip(tr("Перемешать"));
 
     seekSlider_ = new QSlider(Qt::Horizontal, this);
     seekSlider_->setRange(0, 0);
 
     timeLabel_ = new QLabel(QStringLiteral("00:00 / 00:00"), this);
     timeLabel_->setMinimumWidth(110);
-
-    titleLabel_ = new QLabel(QStringLiteral("—"), this);
 
     volumeSlider_ = new QSlider(Qt::Horizontal, this);
     volumeSlider_->setRange(0, 100);
@@ -59,16 +65,16 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     top->addWidget(playBtn_);
     top->addWidget(stopBtn_);
     top->addWidget(nextBtn_);
-    top->addSpacing(10);
+    top->addSpacing(6);
     top->addWidget(repeatBtn_);
     top->addWidget(effectBtn_);
-    top->addWidget(shuffleBox_);
-    top->addSpacing(10);
+    top->addWidget(shuffleBtn_);
+    top->addSpacing(6);
     top->addWidget(seekSlider_, 1);
     top->addWidget(timeLabel_);
 
     auto* bottom = new QHBoxLayout;
-    bottom->addWidget(titleLabel_, 1);
+    bottom->addStretch(1);
     bottom->addWidget(new QLabel(QStringLiteral("Громкость"), this));
     bottom->addWidget(volumeSlider_);
 
@@ -94,10 +100,10 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     connect(volumeSlider_, &QSlider::valueChanged, this,
             [this](int value) { engine_.setVolume(static_cast<float>(value)); });
 
-    connect(repeatBtn_, &QPushButton::clicked, this, &ControlPanel::onRepeatClicked);
-    connect(effectBtn_, &QPushButton::clicked, this,
+    connect(repeatBtn_, &QToolButton::clicked, this, &ControlPanel::onRepeatClicked);
+    connect(effectBtn_, &QToolButton::clicked, this,
             &ControlPanel::nextEffectRequested);
-    connect(shuffleBox_, &QCheckBox::toggled, this,
+    connect(shuffleBtn_, &QToolButton::toggled, this,
             [this](bool on) { playlist_.setShuffle(on); });
 
     connect(&engine_, &AudioEngine::positionChanged, this, &ControlPanel::onPositionChanged);
@@ -105,11 +111,7 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     connect(&engine_, &AudioEngine::stateChanged, this, &ControlPanel::onStateChanged);
     connect(&engine_, &AudioEngine::mediaFinished, this, &ControlPanel::handleMediaFinished);
 
-    connect(&playlist_, &Playlist::currentChanged, this, &ControlPanel::onCurrentChanged);
-    connect(&playlist_, &Playlist::changed, this, [this] { refreshTitle(); });
-
     refreshRepeatButton();
-    refreshTitle();
     refreshTimeLabel(0);
 }
 
@@ -162,10 +164,6 @@ void ControlPanel::onDurationChanged(qint64 ms) {
     refreshTimeLabel(seekSlider_->value());
 }
 
-void ControlPanel::onCurrentChanged(int) {
-    refreshTitle();
-}
-
 void ControlPanel::onSeekMoved(int ms) {
     refreshTimeLabel(ms);
 }
@@ -190,34 +188,22 @@ void ControlPanel::onRepeatClicked() {
 }
 
 void ControlPanel::setEffectName(const QString& name) {
-    effectBtn_->setText(QStringLiteral("Эффект: ") + name);
-}
-
-void ControlPanel::refreshTitle() {
-    const Track* track = playlist_.current();
-    if (track == nullptr) {
-        titleLabel_->setText(QStringLiteral("—"));
-        return;
-    }
-    QString title = track->title;
-    if (title.isEmpty()) title = QString::fromStdString(track->path.filename().string());
-    if (track->artist.isEmpty()) {
-        titleLabel_->setText(title);
-        return;
-    }
-    titleLabel_->setText(title + QStringLiteral(" — ") + track->artist);
+    effectBtn_->setToolTip(tr("Эффект: %1").arg(name));
 }
 
 void ControlPanel::refreshRepeatButton() {
     switch (playlist_.repeat()) {
     case Playlist::Repeat::Off:
-        repeatBtn_->setText(QStringLiteral("Повтор: выкл"));
+        repeatBtn_->setChecked(false);
+        repeatBtn_->setToolTip(tr("Повтор: выкл"));
         break;
     case Playlist::Repeat::Track:
-        repeatBtn_->setText(QStringLiteral("Повтор: трек"));
+        repeatBtn_->setChecked(true);
+        repeatBtn_->setToolTip(tr("Повтор: трек"));
         break;
     case Playlist::Repeat::Playlist:
-        repeatBtn_->setText(QStringLiteral("Повтор: список"));
+        repeatBtn_->setChecked(true);
+        repeatBtn_->setToolTip(tr("Повтор: список"));
         break;
     }
 }

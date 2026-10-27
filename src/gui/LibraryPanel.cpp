@@ -56,14 +56,18 @@ LibraryPanel::LibraryPanel(MusicLibrary& library, QWidget* parent)
     view_->sortByColumn(1, Qt::AscendingOrder);
     view_->hideColumn(0);  // нумерация съедает ширину — места не хватает на названия
 
-    // # и текстовые колонки — по содержимому, «Название» занимает свободное
+    // # и «Название» — по содержимому/растяжению; исполнитель, альбом и
+    // длительность — узкие колонки, чтобы название получало максимум ширины
     auto* header = view_->horizontalHeader();
     header->setStretchLastSection(false);
     header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     header->setSectionResizeMode(1, QHeaderView::Stretch);
-    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    header->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    header->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(2, QHeaderView::Interactive);
+    header->setSectionResizeMode(3, QHeaderView::Interactive);
+    header->setSectionResizeMode(4, QHeaderView::Interactive);
+    header->resizeSection(2, 110);
+    header->resizeSection(3, 100);
+    header->resizeSection(4, 64);
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);

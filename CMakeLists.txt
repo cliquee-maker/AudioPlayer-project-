@@ -113,7 +113,9 @@ add_library(gui STATIC
     src/gui/LibraryModel.cpp
     src/gui/LibraryPanel.cpp
     src/gui/MainWindow.cpp
+    src/gui/LyricsPanel.cpp
     src/gui/SimulatedVisualSource.cpp
+    src/gui/TrackInfoPanel.cpp
     src/gui/Visualizer.cpp
     # Заголовки лежат в include/gui/, а не рядом с .cpp — перечисляем явно,
     # иначе AUTOMOC их не найдёт и не будет vtable (Q_OBJECT).
@@ -121,6 +123,9 @@ add_library(gui STATIC
     include/gui/LibraryModel.hpp
     include/gui/LibraryPanel.hpp
     include/gui/MainWindow.hpp
+    include/gui/LyricsPanel.hpp
+    include/gui/SimulatedVisualSource.hpp
+    include/gui/TrackInfoPanel.hpp
     include/gui/Visualizer.hpp
     include/gui/IVisualSource.hpp
     include/gui/SimulatedVisualSource.hpp

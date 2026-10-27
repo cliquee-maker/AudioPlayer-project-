@@ -4,9 +4,7 @@
 
 class AudioEngine;
 class Playlist;
-class QCheckBox;
 class QLabel;
-class QPushButton;
 class QSlider;
 class QToolButton;
 
@@ -28,13 +26,11 @@ private slots:
     void onStateChanged(bool playing);
     void onPositionChanged(qint64 ms);
     void onDurationChanged(qint64 ms);
-    void onCurrentChanged(int index);
     void onSeekMoved(int ms);
     void onSeekReleased();
     void onRepeatClicked();
 
 private:
-    void refreshTitle();
     void refreshRepeatButton();
     void refreshTimeLabel(qint64 shownMs);
 
@@ -45,11 +41,10 @@ private:
     QToolButton* playBtn_;
     QToolButton* stopBtn_;
     QToolButton* nextBtn_;
-    QPushButton* repeatBtn_;
-    QPushButton* effectBtn_;
-    QCheckBox* shuffleBox_;
+    QToolButton* repeatBtn_;
+    QToolButton* effectBtn_;
+    QToolButton* shuffleBtn_;
     QSlider* seekSlider_;
     QSlider* volumeSlider_;
     QLabel* timeLabel_;
-    QLabel* titleLabel_;
 };

@@ -18,7 +18,8 @@ constexpr double kPi = 3.14159265358979323846;
 
 Visualizer::Visualizer(IVisualSource* source, QWidget* parent)
     : QWidget(parent), source_(source) {
-    setMinimumHeight(140);
+    setMinimumHeight(45);
+    setMaximumHeight(100);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setAttribute(Qt::WA_OpaquePaintEvent);
 
