@@ -17,6 +17,7 @@ struct Track {
     QString title;
     QString artist;
     QString album;
+    QString genre;  // из media.tag()->genre(); умный список «By genre»
     qint64 durationMs = 0;
     QByteArray coverData;  // JPEG/PNG из TagLib -> GUI грузит в QPixmap
 };

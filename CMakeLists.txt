@@ -31,7 +31,7 @@ set(CMAKE_AUTORCC ON)
 #    (FetchContent), чтобы другу на Windows хватило только CMake + компилятора.
 option(AUDIOPLAYER_FETCH_DEPS "Собирать отсутствующие зависимости из исходников" ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Multimedia Sql)
 find_package(nlohmann_json QUIET)
 find_package(taglib QUIET)
 
@@ -113,6 +113,29 @@ add_library(audio STATIC
 target_include_directories(audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(audio PUBLIC Qt6::Core Qt6::Multimedia)
 
+# --- Слой данных (этап 1: SQLite через Qt6::Sql) ---
+# Database + реализации контрактов MusicLibrary/Playlist/ListeningStats.
+# Пока настоящих реализаций нет, здесь лежат заглушки из src/stubs; по мере
+# готовности этапов 2–4 они заменяются на src/library/*.cpp и src/stats/*.cpp.
+add_library(persistence STATIC
+    src/db/Database.cpp
+    include/db/Database.hpp
+    src/stubs/MusicLibraryStub.cpp
+    src/stubs/PlaylistStub.cpp
+    src/stubs/ListeningStatsStub.cpp
+    include/library/Track.hpp
+    include/library/MusicLibrary.hpp
+    include/library/Playlist.hpp
+    include/stats/ListeningStats.hpp
+)
+target_include_directories(persistence PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(persistence PUBLIC
+    Qt6::Core
+    Qt6::Sql
+    nlohmann_json::nlohmann_json
+    ${AUDIOPLAYER_TAGLIB_TARGET}
+)
+
 # --- GUI (этап 3) ---
 # Контракты-заголовки (include/...) перечислены в источниках gui:
 # AUTOMOC сканирует только заголовки из sources таргета, так moc
@@ -150,18 +173,13 @@ target_link_libraries(gui PUBLIC
 )
 
 # --- Приложение ---
-# src/stubs/*.cpp — временные реализации контрактов, пока команда
-# не принесла настоящие MusicLibrary/Playlist/ListeningStats.
+# Заглушки контрактов теперь живут в таргете persistence, app от них не зависит.
 add_executable(app
     src/main.cpp
-    src/stubs/MusicLibraryStub.cpp
-    src/stubs/PlaylistStub.cpp
-    src/stubs/ListeningStatsStub.cpp
 )
 target_link_libraries(app PRIVATE
     gui
-    nlohmann_json::nlohmann_json
-    ${AUDIOPLAYER_TAGLIB_TARGET}
+    persistence
 )
 
 # Путь к assets на случай запуска не из корня проекта
