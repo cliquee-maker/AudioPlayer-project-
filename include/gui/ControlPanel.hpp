@@ -7,6 +7,7 @@ class Playlist;
 class QLabel;
 class QSlider;
 class QToolButton;
+class VolumeDial;
 
 class ControlPanel : public QWidget {
     Q_OBJECT
@@ -45,6 +46,6 @@ private:
     QToolButton* effectBtn_;
     QToolButton* shuffleBtn_;
     QSlider* seekSlider_;
-    QSlider* volumeSlider_;
+    VolumeDial* volumeDial_;
     QLabel* timeLabel_;
 };

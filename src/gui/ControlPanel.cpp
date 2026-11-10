@@ -1,6 +1,7 @@
 #include "gui/ControlPanel.hpp"
 
 #include "audio/AudioEngine.hpp"
+#include "gui/VolumeDial.hpp"
 #include "library/Playlist.hpp"
 #include "library/Track.hpp"
 
@@ -54,10 +55,10 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     timeLabel_ = new QLabel(QStringLiteral("00:00 / 00:00"), this);
     timeLabel_->setMinimumWidth(110);
 
-    volumeSlider_ = new QSlider(Qt::Horizontal, this);
-    volumeSlider_->setRange(0, 100);
-    volumeSlider_->setValue(static_cast<int>(engine_.volume()));
-    volumeSlider_->setFixedWidth(140);
+    volumeDial_ = new VolumeDial(this);
+    volumeDial_->setRange(0, 100);
+    volumeDial_->setValue(static_cast<int>(engine_.volume()));
+    volumeDial_->setFixedSize(volumeDial_->sizeHint());
 
     auto* top = new QHBoxLayout;
     top->setSpacing(6);
@@ -73,10 +74,16 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     top->addWidget(seekSlider_, 1);
     top->addWidget(timeLabel_);
 
+    auto* volumeLabel = new QLabel(QStringLiteral("Громкость"), this);
+    volumeLabel->setAlignment(Qt::AlignCenter);
+    auto* volumeBox = new QVBoxLayout;
+    volumeBox->setSpacing(2);
+    volumeBox->addWidget(volumeLabel);
+    volumeBox->addWidget(volumeDial_, 0, Qt::AlignHCenter);
+
     auto* bottom = new QHBoxLayout;
     bottom->addStretch(1);
-    bottom->addWidget(new QLabel(QStringLiteral("Громкость"), this));
-    bottom->addWidget(volumeSlider_);
+    bottom->addLayout(volumeBox);
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
@@ -97,8 +104,11 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
 
     connect(seekSlider_, &QSlider::sliderMoved, this, &ControlPanel::onSeekMoved);
     connect(seekSlider_, &QSlider::sliderReleased, this, &ControlPanel::onSeekReleased);
-    connect(volumeSlider_, &QSlider::valueChanged, this,
-            [this](int value) { engine_.setVolume(static_cast<float>(value)); });
+    connect(volumeDial_, &VolumeDial::valueChanged, this, [this](int value) {
+        engine_.setVolume(static_cast<float>(value));
+        volumeDial_->setToolTip(tr("Громкость: %1%").arg(value));
+    });
+    volumeDial_->setToolTip(tr("Громкость: %1%").arg(volumeDial_->value()));
 
     connect(repeatBtn_, &QToolButton::clicked, this, &ControlPanel::onRepeatClicked);
     connect(effectBtn_, &QToolButton::clicked, this,
