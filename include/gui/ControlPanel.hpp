@@ -12,7 +12,8 @@ class VolumeDial;
 class ControlPanel : public QWidget {
     Q_OBJECT
 public:
-    ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent = nullptr);
+    ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent = nullptr,
+                 QWidget* visualizer = nullptr);
 
 public slots:
     void next();

@@ -5,6 +5,7 @@
 #include "library/Playlist.hpp"
 #include "library/Track.hpp"
 
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QRandomGenerator>
@@ -23,7 +24,8 @@ QString formatMs(qint64 ms) {
 
 }  // namespace
 
-ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent)
+ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent,
+                           QWidget* visualizer)
     : QWidget(parent), engine_(engine), playlist_(playlist) {
     prevBtn_ = new QToolButton(this);
     prevBtn_->setText(QStringLiteral("⏮"));
@@ -60,19 +62,29 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     volumeDial_->setValue(static_cast<int>(engine_.volume()));
     volumeDial_->setFixedSize(volumeDial_->sizeHint());
 
-    auto* top = new QHBoxLayout;
-    top->setSpacing(6);
-    top->addWidget(prevBtn_);
-    top->addWidget(playBtn_);
-    top->addWidget(stopBtn_);
-    top->addWidget(nextBtn_);
-    top->addSpacing(6);
-    top->addWidget(repeatBtn_);
-    top->addWidget(effectBtn_);
-    top->addWidget(shuffleBtn_);
-    top->addSpacing(6);
-    top->addWidget(seekSlider_, 1);
-    top->addWidget(timeLabel_);
+    auto* playbackButtons = new QGridLayout;
+    playbackButtons->setSpacing(6);
+    playbackButtons->addWidget(prevBtn_, 0, 0);
+    playbackButtons->addWidget(playBtn_, 0, 1);
+    playbackButtons->addWidget(stopBtn_, 0, 2);
+    playbackButtons->addWidget(nextBtn_, 0, 3);
+    playbackButtons->addWidget(repeatBtn_, 1, 0);
+    playbackButtons->addWidget(effectBtn_, 1, 1);
+    playbackButtons->addWidget(shuffleBtn_, 1, 2);
+
+    auto* seekRow = new QHBoxLayout;
+    seekRow->setSpacing(6);
+    seekRow->addWidget(seekSlider_, 1);
+    seekRow->addWidget(timeLabel_);
+
+    auto* center = new QVBoxLayout;
+    center->setSpacing(4);
+    center->addLayout(seekRow);
+    if (visualizer != nullptr) {
+        center->addWidget(visualizer, 1);
+    } else {
+        center->addStretch(1);
+    }
 
     auto* volumeLabel = new QLabel(QStringLiteral("Громкость"), this);
     volumeLabel->setAlignment(Qt::AlignCenter);
@@ -81,15 +93,12 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     volumeBox->addWidget(volumeLabel);
     volumeBox->addWidget(volumeDial_, 0, Qt::AlignHCenter);
 
-    auto* bottom = new QHBoxLayout;
-    bottom->addStretch(1);
-    bottom->addLayout(volumeBox);
-
-    auto* layout = new QVBoxLayout(this);
+    auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
-    layout->setSpacing(6);
-    layout->addLayout(top);
-    layout->addLayout(bottom);
+    layout->setSpacing(10);
+    layout->addLayout(playbackButtons, 0);
+    layout->addLayout(center, 1);
+    layout->addLayout(volumeBox, 0);
 
     connect(prevBtn_, &QToolButton::clicked, this, &ControlPanel::prev);
     connect(nextBtn_, &QToolButton::clicked, this, &ControlPanel::next);

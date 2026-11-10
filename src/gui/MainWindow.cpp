@@ -26,8 +26,8 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
     layout->setContentsMargins(10, 10, 10, 10);
     layout->setSpacing(10);
 
-    control_ = new ControlPanel(engine_, playlist_, central);
     visualizer_ = new Visualizer(&visualSource_, central);
+    control_ = new ControlPanel(engine_, playlist_, central, visualizer_);
 
     // Плейлист подхватывает содержимое библиотеки, пока пуст.
     // Connect должен быть ДО создания LibraryPanel: его конструктор
@@ -58,7 +58,6 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
     topRow->addWidget(infoBox, 0);
 
     layout->addLayout(topRow, 1);
-    layout->addWidget(visualizer_, 1);
     layout->addWidget(control_);
     setCentralWidget(central);
 
