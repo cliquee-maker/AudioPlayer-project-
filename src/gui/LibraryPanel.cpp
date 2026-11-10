@@ -17,10 +17,52 @@
 #include <QVBoxLayout>
 
 #include <filesystem>
+#include <limits>
 
 namespace {
 constexpr auto kFolderKey = "library/folder";
-}
+
+// Сортировка альбомов по метаданным: альбом, затем номер трека.
+// Qt при Z→A вызывает lessThan с переставленными аргументами, поэтому
+// номер трека сравниваем в обратную сторону — внутри альбома он всегда
+// остаётся по возрастанию (1, 2, 3, ...).
+class AlbumSortProxyModel : public QSortFilterProxyModel {
+public:
+    using QSortFilterProxyModel::QSortFilterProxyModel;
+
+protected:
+    bool lessThan(const QModelIndex& left, const QModelIndex& right) const override {
+        if (left.column() != 3 || right.column() != 3)
+            return QSortFilterProxyModel::lessThan(left, right);
+
+        const bool descending = sortOrder() == Qt::DescendingOrder;
+
+        const int albumCmp = QString::compare(left.data(Qt::DisplayRole).toString(),
+                                              right.data(Qt::DisplayRole).toString(),
+                                              Qt::CaseInsensitive);
+        if (albumCmp != 0) return albumCmp < 0;
+
+        constexpr int kUnknownTrack = std::numeric_limits<int>::max();
+        const int leftNumber = left.data(LibraryModel::TrackNumberRole).toInt();
+        const int rightNumber = right.data(LibraryModel::TrackNumberRole).toInt();
+        const int leftRank = leftNumber == 0 ? kUnknownTrack : leftNumber;
+        const int rightRank = rightNumber == 0 ? kUnknownTrack : rightNumber;
+        if (leftRank != rightRank) return descending ? leftRank > rightRank : leftRank < rightRank;
+
+        const int artistCmp = QString::compare(
+            left.siblingAtColumn(2).data(Qt::DisplayRole).toString(),
+            right.siblingAtColumn(2).data(Qt::DisplayRole).toString(), Qt::CaseInsensitive);
+        if (artistCmp != 0) return descending ? artistCmp > 0 : artistCmp < 0;
+
+        const int titleCmp = QString::compare(
+            left.siblingAtColumn(1).data(Qt::DisplayRole).toString(),
+            right.siblingAtColumn(1).data(Qt::DisplayRole).toString(), Qt::CaseInsensitive);
+        if (titleCmp != 0) return descending ? titleCmp > 0 : titleCmp < 0;
+
+        return QSortFilterProxyModel::lessThan(left, right);
+    }
+};
+}  // namespace
 
 LibraryPanel::LibraryPanel(MusicLibrary& library, QWidget* parent)
     : QWidget(parent), library_(library) {
@@ -38,7 +80,7 @@ LibraryPanel::LibraryPanel(MusicLibrary& library, QWidget* parent)
     top->addWidget(search_, 1);
 
     model_ = new LibraryModel(library_, this);
-    proxy_ = new QSortFilterProxyModel(this);
+    proxy_ = new AlbumSortProxyModel(this);
     proxy_->setSourceModel(model_);
     proxy_->setFilterCaseSensitivity(Qt::CaseInsensitive);
     proxy_->setFilterKeyColumn(-1);  // поиск по всем столбцам
@@ -53,7 +95,7 @@ LibraryPanel::LibraryPanel(MusicLibrary& library, QWidget* parent)
     view_->verticalHeader()->setDefaultSectionSize(26);
     view_->setIconSize(QSize(20, 20));
     view_->setSortingEnabled(true);
-    view_->sortByColumn(1, Qt::AscendingOrder);
+    view_->sortByColumn(3, Qt::AscendingOrder);
     view_->hideColumn(0);  // нумерация съедает ширину — места не хватает на названия
 
     // # и «Название» — по содержимому/растяжению; исполнитель, альбом и

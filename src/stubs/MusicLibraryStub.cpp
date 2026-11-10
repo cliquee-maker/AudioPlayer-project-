@@ -92,6 +92,27 @@ qint64 fallbackDurationMs(const std::filesystem::path& path) {
     return 120000 + static_cast<qint64>(hash % 180001);
 }
 
+// Порядок библиотеки (и плейлиста): альбом -> исполнитель -> номер трека.
+// Пустой альбом и неизвестный номер уходят в конец.
+bool compareForAlbumOrder(const Track& a, const Track& b) {
+    if (a.album.isEmpty() != b.album.isEmpty()) return b.album.isEmpty();
+
+    int cmp = QString::compare(a.album, b.album, Qt::CaseInsensitive);
+    if (cmp != 0) return cmp < 0;
+    cmp = QString::compare(a.artist, b.artist, Qt::CaseInsensitive);
+    if (cmp != 0) return cmp < 0;
+
+    if (a.trackNumber != b.trackNumber) {
+        if (a.trackNumber == 0) return false;
+        if (b.trackNumber == 0) return true;
+        return a.trackNumber < b.trackNumber;
+    }
+
+    cmp = QString::compare(a.title, b.title, Qt::CaseInsensitive);
+    if (cmp != 0) return cmp < 0;
+    return a.path < b.path;
+}
+
 }  // namespace
 
 MusicLibrary::MusicLibrary(QObject* parent) : QObject(parent) {}
@@ -115,6 +136,7 @@ void MusicLibrary::scan(const std::filesystem::path& dir) {
                     track.title = toQString(tag->title());
                     track.artist = toQString(tag->artist());
                     track.album = toQString(tag->album());
+                    track.trackNumber = static_cast<int>(tag->track());
                 }
                 if (const TagLib::AudioProperties* properties = media.audioProperties()) {
                     track.durationMs = properties->lengthInMilliseconds();
@@ -128,8 +150,7 @@ void MusicLibrary::scan(const std::filesystem::path& dir) {
 
             tracks_.push_back(std::move(track));
         }
-        std::sort(tracks_.begin(), tracks_.end(),
-                  [](const Track& a, const Track& b) { return a.path < b.path; });
+        std::sort(tracks_.begin(), tracks_.end(), compareForAlbumOrder);
     }
 
     emit libraryChanged();

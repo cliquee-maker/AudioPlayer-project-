@@ -17,6 +17,7 @@ struct Track {
     QString title;
     QString artist;
     QString album;
+    int trackNumber = 0;  // номер трека в альбоме; 0 — неизвестен
     qint64 durationMs = 0;
     QByteArray coverData;  // JPEG/PNG из TagLib -> GUI грузит в QPixmap
 };
