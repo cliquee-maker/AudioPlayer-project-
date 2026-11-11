@@ -6,3 +6,7 @@ GUI_PLAN.md
 .clangd
 AGENT_PROMPT.md
 INTERFACE_PLAN.md
+# Visual Studio / локальные настройки
+.vs/
+out/
+CMakeUserPresets.json

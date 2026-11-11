@@ -8,8 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # --- Общие настройки (одинаково для Linux и Windows) ---
 if(MSVC)
     add_compile_options(/utf-8 /permissive- /Zc:__cplusplus)
-    # Рантайм не форсируем: Qt из aqtinstall и vcpkg-триплет x64-windows
-    # собраны с /MD. Принудительный /MT даёт LNK2038 при линковке.
+    # Рантайм оставляем динамическим (/MD, по умолчанию): Qt и vcpkg x64-windows
+    # собраны с ним же, а два разных рантайма в одном процессе — источник падений.
 else()
     add_compile_options(-Wall -Wextra)
 endif()
@@ -181,9 +181,23 @@ target_compile_definitions(app PRIVATE
 if(WIN32)
     # GUI-приложение без консольного окна (уберите WIN32, если нужен вывод в консоль)
     set_target_properties(app PROPERTIES WIN32_EXECUTABLE TRUE)
+
+    # После сборки кладём DLL Qt и плагины (в т.ч. FFmpeg-бэкенд Multimedia)
+    # рядом с app.exe — иначе он не запустится и не будет звука.
+    find_program(AUDIOPLAYER_WINDEPLOYQT windeployqt HINTS "${QT6_INSTALL_PREFIX}/bin")
+    if(AUDIOPLAYER_WINDEPLOYQT)
+        add_custom_command(TARGET app POST_BUILD
+            COMMAND "${AUDIOPLAYER_WINDEPLOYQT}" --no-translations --no-compiler-runtime
+                    --no-opengl-sw "$<TARGET_FILE:app>"
+            COMMENT "windeployqt: copying Qt DLLs next to app.exe")
+    else()
+        message(WARNING "windeployqt не найден — DLL Qt придётся копировать вручную")
+    endif()
 endif()
 
 # --- Тесты (CTest) ---
+# Тесты описаны в tests/CMakeLists.txt. BUILD_TESTING=OFF полностью
+# отключает их сборку (например, для релизной сборки приложения).
 include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)
