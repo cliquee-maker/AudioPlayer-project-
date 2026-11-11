@@ -7,17 +7,20 @@ class Playlist;
 class QLabel;
 class QSlider;
 class QToolButton;
+class VolumeDial;
 
 class ControlPanel : public QWidget {
     Q_OBJECT
 public:
-    ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent = nullptr);
+    ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent = nullptr,
+                 QWidget* visualizer = nullptr);
 
 public slots:
     void next();
     void prev();
     void handleMediaFinished();
     void setEffectName(const QString& name);
+    void setMuted(bool muted);
 
 signals:
     void nextEffectRequested();
@@ -45,6 +48,8 @@ private:
     QToolButton* effectBtn_;
     QToolButton* shuffleBtn_;
     QSlider* seekSlider_;
-    QSlider* volumeSlider_;
+    VolumeDial* volumeDial_;
     QLabel* timeLabel_;
+    bool muted_ = false;
+    int volumeBeforeMute_ = 100;
 };

@@ -77,6 +77,8 @@ QVariant LibraryModel::data(const QModelIndex& index, int role) const {
     if (index.row() < 0 || index.row() >= static_cast<int>(tracks.size())) return {};
     const Track& track = tracks[static_cast<std::size_t>(index.row())];
 
+    if (role == TrackNumberRole) return track.trackNumber;
+
     if (role == Qt::DecorationRole && index.column() == 1) return iconFor(track);
 
     if (role == Qt::TextAlignmentRole && (index.column() == 0 || index.column() == 4)) {

@@ -14,11 +14,11 @@ class LibraryPanel : public QWidget {
 public:
     explicit LibraryPanel(MusicLibrary& library, QWidget* parent = nullptr);
 
+public slots:
+    void chooseFolder();
+
 signals:
     void trackActivated(int sourceRow);  // двойной клик/Enter по треку
-
-private slots:
-    void chooseFolder();
 
 private:
     MusicLibrary& library_;

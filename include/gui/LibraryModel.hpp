@@ -10,6 +10,8 @@ struct Track;
 class LibraryModel : public QAbstractTableModel {
     Q_OBJECT
 public:
+    enum Role { TrackNumberRole = Qt::UserRole + 1 };
+
     explicit LibraryModel(MusicLibrary& library, QObject* parent = nullptr);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;

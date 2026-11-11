@@ -1,6 +1,7 @@
 #include "gui/ControlPanel.hpp"
 
 #include "audio/AudioEngine.hpp"
+#include "gui/VolumeDial.hpp"
 #include "library/Playlist.hpp"
 #include "library/Track.hpp"
 
@@ -22,7 +23,8 @@ QString formatMs(qint64 ms) {
 
 }  // namespace
 
-ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent)
+ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent,
+                           QWidget* visualizer)
     : QWidget(parent), engine_(engine), playlist_(playlist) {
     prevBtn_ = new QToolButton(this);
     prevBtn_->setText(QStringLiteral("⏮"));
@@ -48,41 +50,77 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     shuffleBtn_->setCheckable(true);
     shuffleBtn_->setToolTip(tr("Перемешать"));
 
+    // Все кнопки управления одного размера — и транспорт, и режимы.
+    QSize buttonSize(34, 30);
+    for (QToolButton* button : {prevBtn_, playBtn_, stopBtn_, nextBtn_, repeatBtn_,
+                                effectBtn_, shuffleBtn_}) {
+        buttonSize = buttonSize.expandedTo(button->sizeHint());
+    }
+    for (QToolButton* button : {prevBtn_, playBtn_, stopBtn_, nextBtn_, repeatBtn_,
+                                effectBtn_, shuffleBtn_}) {
+        button->setFixedSize(buttonSize);
+    }
+
     seekSlider_ = new QSlider(Qt::Horizontal, this);
     seekSlider_->setRange(0, 0);
 
     timeLabel_ = new QLabel(QStringLiteral("00:00 / 00:00"), this);
     timeLabel_->setMinimumWidth(110);
 
-    volumeSlider_ = new QSlider(Qt::Horizontal, this);
-    volumeSlider_->setRange(0, 100);
-    volumeSlider_->setValue(static_cast<int>(engine_.volume()));
-    volumeSlider_->setFixedWidth(140);
+    volumeDial_ = new VolumeDial(this);
+    volumeDial_->setRange(0, 100);
+    volumeDial_->setValue(static_cast<int>(engine_.volume()));
+    volumeDial_->setFixedSize(volumeDial_->sizeHint());
 
-    auto* top = new QHBoxLayout;
-    top->setSpacing(6);
-    top->addWidget(prevBtn_);
-    top->addWidget(playBtn_);
-    top->addWidget(stopBtn_);
-    top->addWidget(nextBtn_);
-    top->addSpacing(6);
-    top->addWidget(repeatBtn_);
-    top->addWidget(effectBtn_);
-    top->addWidget(shuffleBtn_);
-    top->addSpacing(6);
-    top->addWidget(seekSlider_, 1);
-    top->addWidget(timeLabel_);
+    auto* playbackButtons = new QVBoxLayout;
+    playbackButtons->setSpacing(6);
 
-    auto* bottom = new QHBoxLayout;
-    bottom->addStretch(1);
-    bottom->addWidget(new QLabel(QStringLiteral("Громкость"), this));
-    bottom->addWidget(volumeSlider_);
+    auto* transportRow = new QHBoxLayout;
+    transportRow->setSpacing(6);
+    transportRow->addWidget(prevBtn_);
+    transportRow->addWidget(playBtn_);
+    transportRow->addWidget(stopBtn_);
+    transportRow->addWidget(nextBtn_);
 
-    auto* layout = new QVBoxLayout(this);
+    // Три кнопки режимов равномерно по центру под транспортом.
+    auto* modeRow = new QHBoxLayout;
+    modeRow->setSpacing(6);
+    modeRow->addStretch(1);
+    modeRow->addWidget(repeatBtn_);
+    modeRow->addWidget(effectBtn_);
+    modeRow->addWidget(shuffleBtn_);
+    modeRow->addStretch(1);
+
+    playbackButtons->addLayout(transportRow);
+    playbackButtons->addLayout(modeRow);
+
+    auto* seekRow = new QHBoxLayout;
+    seekRow->setSpacing(6);
+    seekRow->addWidget(seekSlider_, 1);
+    seekRow->addWidget(timeLabel_);
+
+    auto* center = new QVBoxLayout;
+    center->setSpacing(4);
+    center->addLayout(seekRow);
+    if (visualizer != nullptr) {
+        center->addWidget(visualizer, 1);
+    } else {
+        center->addStretch(1);
+    }
+
+    auto* volumeLabel = new QLabel(QStringLiteral("Громкость"), this);
+    volumeLabel->setAlignment(Qt::AlignCenter);
+    auto* volumeBox = new QVBoxLayout;
+    volumeBox->setSpacing(2);
+    volumeBox->addWidget(volumeLabel);
+    volumeBox->addWidget(volumeDial_, 0, Qt::AlignHCenter);
+
+    auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
-    layout->setSpacing(6);
-    layout->addLayout(top);
-    layout->addLayout(bottom);
+    layout->setSpacing(10);
+    layout->addLayout(playbackButtons, 0);
+    layout->addLayout(center, 1);
+    layout->addLayout(volumeBox, 0);
 
     connect(prevBtn_, &QToolButton::clicked, this, &ControlPanel::prev);
     connect(nextBtn_, &QToolButton::clicked, this, &ControlPanel::next);
@@ -97,8 +135,11 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
 
     connect(seekSlider_, &QSlider::sliderMoved, this, &ControlPanel::onSeekMoved);
     connect(seekSlider_, &QSlider::sliderReleased, this, &ControlPanel::onSeekReleased);
-    connect(volumeSlider_, &QSlider::valueChanged, this,
-            [this](int value) { engine_.setVolume(static_cast<float>(value)); });
+    connect(volumeDial_, &VolumeDial::valueChanged, this, [this](int value) {
+        engine_.setVolume(static_cast<float>(value));
+        volumeDial_->setToolTip(tr("Громкость: %1%").arg(value));
+    });
+    volumeDial_->setToolTip(tr("Громкость: %1%").arg(volumeDial_->value()));
 
     connect(repeatBtn_, &QToolButton::clicked, this, &ControlPanel::onRepeatClicked);
     connect(effectBtn_, &QToolButton::clicked, this,
@@ -189,6 +230,18 @@ void ControlPanel::onRepeatClicked() {
 
 void ControlPanel::setEffectName(const QString& name) {
     effectBtn_->setToolTip(tr("Эффект: %1").arg(name));
+}
+
+void ControlPanel::setMuted(bool muted) {
+    if (muted == muted_) return;
+    muted_ = muted;
+    if (muted) {
+        volumeBeforeMute_ = volumeDial_->value();
+        if (volumeBeforeMute_ <= 0) volumeBeforeMute_ = 100;
+        volumeDial_->setValue(0);
+    } else {
+        volumeDial_->setValue(volumeBeforeMute_);
+    }
 }
 
 void ControlPanel::refreshRepeatButton() {
