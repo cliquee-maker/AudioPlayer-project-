@@ -193,6 +193,7 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
 
     connect(&playlist_, &Playlist::currentChanged, this, [this](int index) {
         if (index < 0 || index >= playlist_.size()) return;
+        visualSource_.setTrack(playlist_.at(index).path);
         engine_.open(playlist_.at(index).path);
     });
 
@@ -223,7 +224,10 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
         engine_.play();
     });
 
-    if (const Track* track = playlist_.current()) engine_.open(track->path);
+    if (const Track* track = playlist_.current()) {
+        visualSource_.setTrack(track->path);
+        engine_.open(track->path);
+    }
 
     setWindowTitle(QStringLiteral("LOCAL AUDIO PLAYER"));
     resize(760, 560);
