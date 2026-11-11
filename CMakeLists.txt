@@ -8,8 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # --- Общие настройки (одинаково для Linux и Windows) ---
 if(MSVC)
     add_compile_options(/utf-8 /permissive- /Zc:__cplusplus)
-    # vcpkg x64-windows(-static): единый рантайм, чтобы не тянуть dll MinGW/VC
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # Рантайм не форсируем: Qt из aqtinstall и vcpkg-триплет x64-windows
+    # собраны с /MD. Принудительный /MT даёт LNK2038 при линковке.
 else()
     add_compile_options(-Wall -Wextra)
 endif()
@@ -105,7 +105,7 @@ else()
 endif()
 
 # --- Аудиодвижок (QMediaPlayer + QAudioOutput) ---
-# Отдельная библиотека: от неё зависят и GUI, и (позже) тесты.
+# Отдельная библиотека: от неё зависит GUI.
 add_library(audio STATIC
     src/audio/AudioEngine.cpp
     include/audio/AudioEngine.hpp  # для AUTOMOC (Q_OBJECT)
@@ -113,10 +113,31 @@ add_library(audio STATIC
 target_include_directories(audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(audio PUBLIC Qt6::Core Qt6::Multimedia)
 
+# --- Библиотека треков/плейлистов (тестируемая логика) ---
+# Вынесена из app в отдельный таргет, чтобы тесты линковались с той же
+# реализацией, что и приложение. Заголовки с Q_OBJECT перечислены здесь,
+# чтобы AUTOMOC генерировал метаобъекты ровно один раз.
+add_library(library STATIC
+    src/stubs/MusicLibraryStub.cpp
+    src/stubs/PlaylistStub.cpp
+    src/stubs/ListeningStatsStub.cpp
+    include/library/Track.hpp
+    include/library/MusicLibrary.hpp
+    include/library/Playlist.hpp
+    include/stats/ListeningStats.hpp
+)
+target_include_directories(library PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(library PUBLIC
+    Qt6::Core
+    nlohmann_json::nlohmann_json
+    ${AUDIOPLAYER_TAGLIB_TARGET}
+)
+
 # --- GUI (этап 3) ---
-# Контракты-заголовки (include/...) перечислены в источниках gui:
-# AUTOMOC сканирует только заголовки из sources таргета, так moc
-# сгенерируется ровно один раз и не будет дублей символов при линковке.
+# Заголовки include/gui/*.hpp перечислены в источниках gui: AUTOMOC
+# сканирует только заголовки из sources таргета, так moc сгенерируется
+# ровно один раз и не будет дублей символов при линковке. Заголовки
+# library/ и stats/ живут в таргете library, чтобы не дублировать moc.
 add_library(gui STATIC
     src/gui/ControlPanel.cpp
     src/gui/LibraryModel.cpp
@@ -139,32 +160,17 @@ add_library(gui STATIC
     include/gui/Visualizer.hpp
     include/gui/VolumeDial.hpp
     include/gui/IVisualSource.hpp
-    include/gui/SimulatedVisualSource.hpp
-    include/library/Track.hpp
-    include/library/MusicLibrary.hpp
-    include/library/Playlist.hpp
-    include/stats/ListeningStats.hpp
 )
 target_include_directories(gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(gui PUBLIC
     audio
+    library
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia
 )
 
 # --- Приложение ---
-# src/stubs/*.cpp — временные реализации контрактов, пока команда
-# не принесла настоящие MusicLibrary/Playlist/ListeningStats.
-add_executable(app
-    src/main.cpp
-    src/stubs/MusicLibraryStub.cpp
-    src/stubs/PlaylistStub.cpp
-    src/stubs/ListeningStatsStub.cpp
-)
-target_link_libraries(app PRIVATE
-    gui
-    nlohmann_json::nlohmann_json
-    ${AUDIOPLAYER_TAGLIB_TARGET}
-)
+add_executable(app src/main.cpp)
+target_link_libraries(app PRIVATE gui library)
 
 # Путь к assets на случай запуска не из корня проекта
 target_compile_definitions(app PRIVATE
@@ -175,4 +181,10 @@ target_compile_definitions(app PRIVATE
 if(WIN32)
     # GUI-приложение без консольного окна (уберите WIN32, если нужен вывод в консоль)
     set_target_properties(app PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
+
+# --- Тесты (CTest) ---
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
 endif()

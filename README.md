@@ -1,5 +1,7 @@
 # 🎵 LOCAL AUDIO PLAYER
 
+[![CI](https://github.com/cliquee-maker/AudioPlayer-project-/actions/workflows/ci.yml/badge.svg)](https://github.com/cliquee-maker/AudioPlayer-project-/actions/workflows/ci.yml)
+
 **LOCAL AUDIO PLAYER** — это программа для локального прослушивания аудиофайлов с поддержкой библиотеки треков, плейлистов, визуализации звука и настраиваемого эквалайзера.
 
 ---
@@ -113,6 +115,10 @@ cmake --build build -j$(nproc)
 > модуля Multimedia — доустановите его в Qt Maintenance Tool
 > (шестерёнка → «Qt Multimedia»).
 
+> **Рантайм MSVC:** не форсируйте `/MT` через `CMAKE_MSVC_RUNTIME_LIBRARY`.
+> Qt из aqtinstall и стандартный vcpkg-триплет `x64-windows` собраны с `/MD`;
+> смешивание рантаймов даёт ошибку `LNK2038` при линковке.
+
 > **Что делает `FetchContent`:** если `taglib` или `nlohmann-json` не найдены
 > в vcpkg/системе, CMake сам скачает их исходники и соберёт
 > (интернет нужен только при первой конфигурации). Отключить:
@@ -124,6 +130,20 @@ cmake --build build -j$(nproc)
 cmake --preset linux-system   && cmake --build --preset linux-system
 cmake --preset windows-msvc   && cmake --build --preset windows-msvc
 ```
+
+### Тесты
+
+Тесты написаны на Qt Test и запускаются через CTest. `BUILD_TESTING` включён
+по умолчанию, поэтому достаточно обычной сборки:
+
+```bash
+cmake --preset linux-system
+cmake --build --preset linux-system
+ctest --test-dir build/linux-system --output-on-failure
+```
+
+Те же команды выполняет GitHub Actions на Linux и Windows для каждого PR
+в `main` (см. `.github/workflows/ci.yml`).
 
 ### Правила кода, чтобы проект собирался на обеих ОС
 
@@ -170,7 +190,7 @@ audio-player/
 │   ├── library/                 # Track, MusicLibrary (сканирование), Playlist (JSON)
 │   └── gui/                     # Visualizer и компоненты интерфейса
 ├── src/                        # Реализации (.cpp) + main.cpp
-├── tests/                      # test_playlist.cpp — smoke-тест
+├── tests/                      # Qt Test: плейлист и сканирование библиотеки
 ├── CMakeLists.txt              # Скрипт сборки CMake (Qt6, nlohmann/json)
 └── README.md
 ```
