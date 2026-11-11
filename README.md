@@ -58,6 +58,13 @@ cmake --build build -j$(nproc)
 ./build/app
 ```
 
+Ubuntu/Debian (TagLib там ставится через pkg-config, CMake это подхватывает):
+
+```bash
+sudo apt install build-essential cmake qt6-base-dev qt6-multimedia-dev \
+                 libtag1-dev nlohmann-json3-dev pkg-config
+```
+
 ### Windows (MSVC + vcpkg + Qt)
 
 1. **Скачать Qt 6** — два рабочих способа (см. подробности ниже):
