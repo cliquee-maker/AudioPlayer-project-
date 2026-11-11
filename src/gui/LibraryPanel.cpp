@@ -10,7 +10,6 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPushButton>
 #include <QSettings>
 #include <QSortFilterProxyModel>
 #include <QTableView>
@@ -66,7 +65,6 @@ protected:
 
 LibraryPanel::LibraryPanel(MusicLibrary& library, QWidget* parent)
     : QWidget(parent), library_(library) {
-    auto* openBtn = new QPushButton(tr("Открыть папку…"), this);
     search_ = new QLineEdit(this);
     search_->setPlaceholderText(tr("Поиск по названию…"));
     search_->setClearButtonEnabled(true);
@@ -76,7 +74,6 @@ LibraryPanel::LibraryPanel(MusicLibrary& library, QWidget* parent)
 
     auto* top = new QHBoxLayout;
     top->setSpacing(6);
-    top->addWidget(openBtn);
     top->addWidget(search_, 1);
 
     model_ = new LibraryModel(library_, this);
@@ -118,7 +115,6 @@ LibraryPanel::LibraryPanel(MusicLibrary& library, QWidget* parent)
     layout->addWidget(folderLabel_);
     layout->addWidget(view_, 1);
 
-    connect(openBtn, &QPushButton::clicked, this, &LibraryPanel::chooseFolder);
     connect(search_, &QLineEdit::textChanged, proxy_,
             &QSortFilterProxyModel::setFilterFixedString);
     connect(view_, &QAbstractItemView::activated, this, [this](const QModelIndex& index) {

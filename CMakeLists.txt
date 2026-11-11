@@ -104,6 +104,15 @@ else()
     message(FATAL_ERROR "TagLib найден, но неизвестное имя таргета")
 endif()
 
+# --- Аудиодвижок (QMediaPlayer + QAudioOutput) ---
+# Отдельная библиотека: от неё зависят и GUI, и (позже) тесты.
+add_library(audio STATIC
+    src/audio/AudioEngine.cpp
+    include/audio/AudioEngine.hpp  # для AUTOMOC (Q_OBJECT)
+)
+target_include_directories(audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(audio PUBLIC Qt6::Core Qt6::Multimedia)
+
 # --- GUI (этап 3) ---
 # Контракты-заголовки (include/...) перечислены в источниках gui:
 # AUTOMOC сканирует только заголовки из sources таргета, так moc
@@ -131,7 +140,6 @@ add_library(gui STATIC
     include/gui/VolumeDial.hpp
     include/gui/IVisualSource.hpp
     include/gui/SimulatedVisualSource.hpp
-    include/audio/AudioEngine.hpp
     include/library/Track.hpp
     include/library/MusicLibrary.hpp
     include/library/Playlist.hpp
@@ -139,15 +147,15 @@ add_library(gui STATIC
 )
 target_include_directories(gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(gui PUBLIC
+    audio
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia
 )
 
 # --- Приложение ---
 # src/stubs/*.cpp — временные реализации контрактов, пока команда
-# не принесла настоящие AudioEngine/MusicLibrary/Playlist/ListeningStats.
+# не принесла настоящие MusicLibrary/Playlist/ListeningStats.
 add_executable(app
     src/main.cpp
-    src/stubs/AudioEngineStub.cpp
     src/stubs/MusicLibraryStub.cpp
     src/stubs/PlaylistStub.cpp
     src/stubs/ListeningStatsStub.cpp

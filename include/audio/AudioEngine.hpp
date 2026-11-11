@@ -4,15 +4,17 @@
 // КОНТРАКТ (Этап 0) — AudioEngine
 // Публичный API движка воспроизведения. GUI кодится строго против этого
 // заголовка. Изменения — только по согласованию всей команды!
-// Реализацию (QMediaPlayer/QAudioOutput + приватные поля) пишет Никита
-// в src/audio/AudioEngine.cpp.
+// Реализация (QMediaPlayer/QAudioOutput) — src/audio/AudioEngine.cpp.
 // ============================================================================
 
 #include <QObject>
+#include <QString>
+
 #include <filesystem>
 #include <vector>
 
-class QTimer;
+class QAudioOutput;
+class QMediaPlayer;
 
 class AudioEngine : public QObject {
     Q_OBJECT
@@ -21,6 +23,7 @@ public:
     ~AudioEngine() override = default;
 
     // Подготовка файла к воспроизведению; false — файл не открылся.
+    // Если в момент вызова что-то играло — новый трек сразу продолжит играть.
     bool open(const std::filesystem::path& file);
 
     void play();
@@ -46,14 +49,12 @@ signals:
     void durationChanged(qint64 ms);
     void stateChanged(bool playing);
     void mediaFinished();
+    // Файл не декодируется / нет аудиоустройства — текст ошибки от Qt.
+    void errorOccurred(const QString& message);
 
 private:
-    // Поля добавлены под заглушку (src/stubs/AudioEngineStub.cpp).
-    // Никита заменяет их полями QMediaPlayer/QAudioOutput в своей реализации.
-    QTimer* tick_ = nullptr;
-    qint64 positionMs_ = 0;
-    qint64 durationMs_ = 0;
-    bool playing_ = false;
-    float volume_ = 100.0f;
-    std::vector<float> spectrum_;
+    QMediaPlayer* player_ = nullptr;  // декодирование и транспорт (play/pause/seek)
+    QAudioOutput* output_ = nullptr;  // звуковое устройство и громкость
+    float volume_ = 100.0f;           // громкость в шкале UI (0..100)
+    std::vector<float> spectrum_;     // пока пустой — FFT подключим позже
 };

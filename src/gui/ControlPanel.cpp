@@ -5,7 +5,6 @@
 #include "library/Playlist.hpp"
 #include "library/Track.hpp"
 
-#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QRandomGenerator>
@@ -51,6 +50,17 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     shuffleBtn_->setCheckable(true);
     shuffleBtn_->setToolTip(tr("Перемешать"));
 
+    // Все кнопки управления одного размера — и транспорт, и режимы.
+    QSize buttonSize(34, 30);
+    for (QToolButton* button : {prevBtn_, playBtn_, stopBtn_, nextBtn_, repeatBtn_,
+                                effectBtn_, shuffleBtn_}) {
+        buttonSize = buttonSize.expandedTo(button->sizeHint());
+    }
+    for (QToolButton* button : {prevBtn_, playBtn_, stopBtn_, nextBtn_, repeatBtn_,
+                                effectBtn_, shuffleBtn_}) {
+        button->setFixedSize(buttonSize);
+    }
+
     seekSlider_ = new QSlider(Qt::Horizontal, this);
     seekSlider_->setRange(0, 0);
 
@@ -62,15 +72,27 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     volumeDial_->setValue(static_cast<int>(engine_.volume()));
     volumeDial_->setFixedSize(volumeDial_->sizeHint());
 
-    auto* playbackButtons = new QGridLayout;
+    auto* playbackButtons = new QVBoxLayout;
     playbackButtons->setSpacing(6);
-    playbackButtons->addWidget(prevBtn_, 0, 0);
-    playbackButtons->addWidget(playBtn_, 0, 1);
-    playbackButtons->addWidget(stopBtn_, 0, 2);
-    playbackButtons->addWidget(nextBtn_, 0, 3);
-    playbackButtons->addWidget(repeatBtn_, 1, 0);
-    playbackButtons->addWidget(effectBtn_, 1, 1);
-    playbackButtons->addWidget(shuffleBtn_, 1, 2);
+
+    auto* transportRow = new QHBoxLayout;
+    transportRow->setSpacing(6);
+    transportRow->addWidget(prevBtn_);
+    transportRow->addWidget(playBtn_);
+    transportRow->addWidget(stopBtn_);
+    transportRow->addWidget(nextBtn_);
+
+    // Три кнопки режимов равномерно по центру под транспортом.
+    auto* modeRow = new QHBoxLayout;
+    modeRow->setSpacing(6);
+    modeRow->addStretch(1);
+    modeRow->addWidget(repeatBtn_);
+    modeRow->addWidget(effectBtn_);
+    modeRow->addWidget(shuffleBtn_);
+    modeRow->addStretch(1);
+
+    playbackButtons->addLayout(transportRow);
+    playbackButtons->addLayout(modeRow);
 
     auto* seekRow = new QHBoxLayout;
     seekRow->setSpacing(6);
@@ -208,6 +230,18 @@ void ControlPanel::onRepeatClicked() {
 
 void ControlPanel::setEffectName(const QString& name) {
     effectBtn_->setToolTip(tr("Эффект: %1").arg(name));
+}
+
+void ControlPanel::setMuted(bool muted) {
+    if (muted == muted_) return;
+    muted_ = muted;
+    if (muted) {
+        volumeBeforeMute_ = volumeDial_->value();
+        if (volumeBeforeMute_ <= 0) volumeBeforeMute_ = 100;
+        volumeDial_->setValue(0);
+    } else {
+        volumeDial_->setValue(volumeBeforeMute_);
+    }
 }
 
 void ControlPanel::refreshRepeatButton() {

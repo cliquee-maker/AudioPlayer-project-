@@ -20,6 +20,7 @@ public slots:
     void prev();
     void handleMediaFinished();
     void setEffectName(const QString& name);
+    void setMuted(bool muted);
 
 signals:
     void nextEffectRequested();
@@ -49,4 +50,6 @@ private:
     QSlider* seekSlider_;
     VolumeDial* volumeDial_;
     QLabel* timeLabel_;
+    bool muted_ = false;
+    int volumeBeforeMute_ = 100;
 };
