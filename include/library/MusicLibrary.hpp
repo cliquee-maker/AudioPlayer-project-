@@ -13,13 +13,20 @@
 #include <QObject>
 
 #include <filesystem>
+#include <memory>
 #include <vector>
+
+class Database;
 
 class MusicLibrary : public QObject {
     Q_OBJECT
 public:
     explicit MusicLibrary(QObject* parent = nullptr);
-    ~MusicLibrary() override = default;
+
+    // Для тестов/встраивания: использовать готовое соединение с БД.
+    // По умолчанию библиотека сама открывает Database::defaultPath().
+    explicit MusicLibrary(Database& db, QObject* parent = nullptr);
+    ~MusicLibrary() override;
 
     // Рекурсивный скан каталога: mp3, wav, ogg, flac; чтение тегов.
     void scan(const std::filesystem::path& dir);
@@ -34,5 +41,7 @@ signals:
     void libraryChanged();  // после scan()/clear()
 
 private:
+    std::unique_ptr<Database> ownedDb_;  // создаётся только конструктором по умолчанию
+    Database* db_ = nullptr;
     std::vector<Track> tracks_;
 };

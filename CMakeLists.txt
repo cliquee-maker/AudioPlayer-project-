@@ -113,14 +113,14 @@ add_library(audio STATIC
 target_include_directories(audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(audio PUBLIC Qt6::Core Qt6::Multimedia)
 
-# --- Слой данных (этап 1: SQLite через Qt6::Sql) ---
+# --- Слой данных (этапы 1–2: SQLite через Qt6::Sql) ---
 # Database + реализации контрактов MusicLibrary/Playlist/ListeningStats.
-# Пока настоящих реализаций нет, здесь лежат заглушки из src/stubs; по мере
-# готовности этапов 2–4 они заменяются на src/library/*.cpp и src/stats/*.cpp.
+# MusicLibrary уже настоящая (инкрементальный кэш); Playlist и ListeningStats
+# пока остаются заглушками из src/stubs до этапов 3–4.
 add_library(persistence STATIC
     src/db/Database.cpp
     include/db/Database.hpp
-    src/stubs/MusicLibraryStub.cpp
+    src/library/MusicLibrary.cpp
     src/stubs/PlaylistStub.cpp
     src/stubs/ListeningStatsStub.cpp
     include/library/Track.hpp

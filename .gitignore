@@ -10,3 +10,4 @@ INTERFACE_PLAN.md
 .vs/
 out/
 CMakeUserPresets.json
+DB_API_PLAN.md
