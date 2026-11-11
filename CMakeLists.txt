@@ -35,6 +35,15 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Multimedia)
 find_package(nlohmann_json QUIET)
 find_package(taglib QUIET)
 
+# Ubuntu/Debian libtag1-dev не содержит CMake-конфига (в отличие от Arch и
+# vcpkg), только pkg-config-файл taglib.pc. Пробуем его как запасной путь.
+if(NOT taglib_FOUND)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(TAGLIB QUIET IMPORTED_TARGET taglib)
+    endif()
+endif()
+
 # --- nlohmann/json (header-only) ---
 if(NOT nlohmann_json_FOUND AND AUDIOPLAYER_FETCH_DEPS)
     message(STATUS "nlohmann_json не найден -> FetchContent")
@@ -49,7 +58,7 @@ if(NOT nlohmann_json_FOUND AND AUDIOPLAYER_FETCH_DEPS)
 endif()
 
 # --- TagLib ---
-if(NOT taglib_FOUND AND AUDIOPLAYER_FETCH_DEPS)
+if(NOT taglib_FOUND AND NOT TAGLIB_FOUND AND AUDIOPLAYER_FETCH_DEPS)
     message(STATUS "taglib не найден -> FetchContent")
     include(FetchContent)
     # TagLib требует zlib
@@ -84,9 +93,9 @@ if(NOT nlohmann_json_FOUND)
     message(FATAL_ERROR "Не найден nlohmann/json. Установите его (vcpkg install nlohmann-json) "
                         "или включите -DAUDIOPLAYER_FETCH_DEPS=ON")
 endif()
-if(NOT taglib_FOUND)
-    message(FATAL_ERROR "Не найден TagLib. Установите его (vcpkg install taglib) "
-                        "или включите -DAUDIOPLAYER_FETCH_DEPS=ON")
+if(NOT taglib_FOUND AND NOT TAGLIB_FOUND)
+    message(FATAL_ERROR "Не найден TagLib. Установите его (vcpkg install taglib, "
+                        "libtag1-dev или taglib) или включите -DAUDIOPLAYER_FETCH_DEPS=ON")
 endif()
 
 # У разных дистрибутивов/способов сборки имя таргета TagLib отличается:
@@ -96,6 +105,8 @@ if(TARGET TagLib::TagLib)
     set(AUDIOPLAYER_TAGLIB_TARGET TagLib::TagLib)
 elseif(TARGET TagLib::tag)
     set(AUDIOPLAYER_TAGLIB_TARGET TagLib::tag)
+elseif(TARGET PkgConfig::TAGLIB)
+    set(AUDIOPLAYER_TAGLIB_TARGET PkgConfig::TAGLIB)
 elseif(TARGET taglib::taglib)
     set(AUDIOPLAYER_TAGLIB_TARGET taglib::taglib)
 elseif(TARGET taglib)
