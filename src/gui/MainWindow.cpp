@@ -4,6 +4,7 @@
 #include "gui/ControlPanel.hpp"
 #include "gui/LibraryPanel.hpp"
 #include "gui/LyricsPanel.hpp"
+#include "gui/RecommendationsPanel.hpp"
 #include "gui/TrackInfoPanel.hpp"
 #include "gui/Visualizer.hpp"
 #include "library/MusicLibrary.hpp"
@@ -12,6 +13,7 @@
 #include "stats/ListeningStats.hpp"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -20,6 +22,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSettings>
+#include <QStackedWidget>
 #include <QStyle>
 #include <QVBoxLayout>
 
@@ -50,7 +53,13 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
 
     // Библиотека занимает пустой участок верхнего ряда (слева),
     // справа — колонка «обложка + инфо» и под ней текст песни.
+    // «Рекомендации» — вторая страница того же участка: каталог песен
+    // скрывается, вместо него показываются папки и текст из API.
     auto* libraryPanel = new LibraryPanel(library_, central);
+    auto* recommendationsPanel = new RecommendationsPanel(central);
+    auto* contentStack = new QStackedWidget(central);
+    contentStack->addWidget(libraryPanel);
+    contentStack->addWidget(recommendationsPanel);
 
     // --- Меню в левом верхнем углу окна ---
     auto* musicMenu = menuBar()->addMenu(tr("Музыка"));
@@ -158,10 +167,45 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
     connect(clearPlaylistAction, &QAction::triggered, &playlist_, &Playlist::clear);
 
     auto* serviceMenu = menuBar()->addMenu(tr("Сервис"));
+    auto* recommendationsAction = serviceMenu->addAction(tr("Рекомендации"));
+    recommendationsAction->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+    recommendationsAction->setCheckable(true);
+    recommendationsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+R")));
+    connect(recommendationsAction, &QAction::toggled, this, [contentStack](bool show) {
+        contentStack->setCurrentIndex(show ? 1 : 0);
+    });
+    connect(recommendationsPanel, &RecommendationsPanel::backRequested, recommendationsAction,
+            [recommendationsAction] { recommendationsAction->setChecked(false); });
+
+    serviceMenu->addSeparator();
     auto* nextEffectAction = serviceMenu->addAction(tr("Следующий эффект визуализации"));
     connect(nextEffectAction, &QAction::triggered, visualizer_, &Visualizer::cycleMode);
     auto* equalizerAction = serviceMenu->addAction(tr("Эквалайзер…"));
     equalizerAction->setEnabled(false);
+
+    auto* personalizationMenu = menuBar()->addMenu(tr("Персонализация"));
+    auto* volumeStyleGroup = new QActionGroup(this);
+    volumeStyleGroup->setExclusive(true);
+
+    auto* dialAction = personalizationMenu->addAction(tr("Круглая ручка громкости"));
+    dialAction->setCheckable(true);
+    auto* sliderAction = personalizationMenu->addAction(tr("Обычный ползунок громкости"));
+    sliderAction->setCheckable(true);
+    volumeStyleGroup->addAction(dialAction);
+    volumeStyleGroup->addAction(sliderAction);
+
+    QSettings settings;
+    const bool useDial =
+        settings.value(QStringLiteral("personalization/volumeDial"), false).toBool();
+    (useDial ? dialAction : sliderAction)->setChecked(true);
+    control_->setVolumeControlStyle(useDial);
+
+    connect(volumeStyleGroup, &QActionGroup::triggered, this,
+            [this, dialAction](QAction* action) {
+                const bool dial = (action == dialAction);
+                control_->setVolumeControlStyle(dial);
+                QSettings().setValue(QStringLiteral("personalization/volumeDial"), dial);
+            });
 
     auto* helpMenu = menuBar()->addMenu(tr("Справка"));
     auto* aboutAction = helpMenu->addAction(tr("О программе"));
@@ -184,7 +228,7 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
 
     auto* topRow = new QHBoxLayout;
     topRow->setSpacing(10);
-    topRow->addWidget(libraryPanel, 1);
+    topRow->addWidget(contentStack, 1);
     topRow->addWidget(infoBox, 0);
 
     layout->addLayout(topRow, 1);

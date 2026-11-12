@@ -123,6 +123,7 @@ add_library(gui STATIC
     src/gui/LibraryPanel.cpp
     src/gui/MainWindow.cpp
     src/gui/LyricsPanel.cpp
+    src/gui/RecommendationsPanel.cpp
     src/gui/SimulatedVisualSource.cpp
     src/gui/TrackInfoPanel.cpp
     src/gui/Visualizer.cpp
@@ -134,6 +135,7 @@ add_library(gui STATIC
     include/gui/LibraryPanel.hpp
     include/gui/MainWindow.hpp
     include/gui/LyricsPanel.hpp
+    include/gui/RecommendationsPanel.hpp
     include/gui/SimulatedVisualSource.hpp
     include/gui/TrackInfoPanel.hpp
     include/gui/Visualizer.hpp
