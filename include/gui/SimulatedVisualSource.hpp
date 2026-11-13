@@ -38,8 +38,11 @@ private:
     bool hasRealAudio() const;
     void updateBinsFromPcm(float deltaMs) const;
     void updateBinsSynthetic(float deltaMs) const;
-    void updateWaveformFromPcm() const;
-    void updateWaveformSynthetic() const;
+    // Плавная позиция для осциллографа: сигнал positionChanged от плеера
+    // приходит редко, поэтому между обновлениями «докручиваем» её сами.
+    qint64 advanceVisualPosition() const;
+    void updateWaveformFromPcm(qint64 positionMs) const;
+    void updateWaveformSynthetic(qint64 positionMs) const;
 
     AudioEngine& engine_;
     QAudioDecoder* decoder_ = nullptr;
@@ -53,6 +56,10 @@ private:
 
     mutable std::vector<float> bins_;
     mutable std::vector<float> waveform_;
+    mutable std::vector<float> displayWave_;
     mutable QElapsedTimer clock_;
     mutable qint64 lastMs_ = -1;
+    mutable double smoothPositionMs_ = -1.0;
+    mutable qint64 lastWaveformTickMs_ = -1;
+    mutable qint64 lastDisplayPositionMs_ = -1;
 };

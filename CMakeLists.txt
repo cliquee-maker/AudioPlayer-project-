@@ -118,11 +118,13 @@ target_link_libraries(audio PUBLIC Qt6::Core Qt6::Multimedia)
 # AUTOMOC сканирует только заголовки из sources таргета, так moc
 # сгенерируется ровно один раз и не будет дублей символов при линковке.
 add_library(gui STATIC
+    src/gui/AlbumCoverWidget.cpp
     src/gui/ControlPanel.cpp
     src/gui/LibraryModel.cpp
     src/gui/LibraryPanel.cpp
     src/gui/MainWindow.cpp
     src/gui/LyricsPanel.cpp
+    src/gui/QueuePanel.cpp
     src/gui/RecommendationsPanel.cpp
     src/gui/SimulatedVisualSource.cpp
     src/gui/TrackInfoPanel.cpp
@@ -130,11 +132,13 @@ add_library(gui STATIC
     src/gui/VolumeDial.cpp
     # Заголовки лежат в include/gui/, а не рядом с .cpp — перечисляем явно,
     # иначе AUTOMOC их не найдёт и не будет vtable (Q_OBJECT).
+    include/gui/AlbumCoverWidget.hpp
     include/gui/ControlPanel.hpp
     include/gui/LibraryModel.hpp
     include/gui/LibraryPanel.hpp
     include/gui/MainWindow.hpp
     include/gui/LyricsPanel.hpp
+    include/gui/QueuePanel.hpp
     include/gui/RecommendationsPanel.hpp
     include/gui/SimulatedVisualSource.hpp
     include/gui/TrackInfoPanel.hpp
@@ -158,6 +162,7 @@ target_link_libraries(gui PUBLIC
 # не принесла настоящие MusicLibrary/Playlist/ListeningStats.
 add_executable(app
     src/main.cpp
+    assets/resources.qrc
     src/stubs/MusicLibraryStub.cpp
     src/stubs/PlaylistStub.cpp
     src/stubs/ListeningStatsStub.cpp

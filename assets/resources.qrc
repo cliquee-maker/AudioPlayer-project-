@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/assets">
+        <file alias="vinyl-record.png">vinyl-record.png</file>
+    </qresource>
+</RCC>

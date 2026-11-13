@@ -9,6 +9,7 @@ class ControlPanel;
 class ListeningStats;
 class MusicLibrary;
 class Playlist;
+class TrackInfoPanel;
 class Visualizer;
 
 class MainWindow : public QMainWindow {
@@ -25,4 +26,5 @@ private:
     SimulatedVisualSource visualSource_;
     ControlPanel* control_ = nullptr;
     Visualizer* visualizer_ = nullptr;
+    TrackInfoPanel* trackInfo_ = nullptr;
 };
