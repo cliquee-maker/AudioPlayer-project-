@@ -17,6 +17,7 @@
       "inherits": "base",
       "displayName": "Linux (системные пакеты: pacman/apt)",
       "description": "Qt6/TagLib/nlohmann-json из дистрибутива",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
       "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
     },
     {
@@ -25,11 +26,19 @@
       "displayName": "Windows (MSVC + vcpkg + Qt из aqtinstall)",
       "description": "Нужно указать путь к vcpkg и к Qt6 через CMAKE_PREFIX_PATH",
       "generator": "Ninja",
+      "architecture": { "value": "x64", "strategy": "external" },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_PREFIX_PATH": "$env{QT_ROOT_DIR}"
       }
+    },
+    {
+      "name": "windows-msvc-debug",
+      "inherits": "windows-msvc",
+      "displayName": "Windows Debug (MSVC + vcpkg + Qt)",
+      "description": "То же, что windows-msvc, но для отладки (F5 в Visual Studio)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
     },
     {
       "name": "windows-mingw",
@@ -42,6 +51,7 @@
   "buildPresets": [
     { "name": "linux-system", "configurePreset": "linux-system" },
     { "name": "windows-msvc", "configurePreset": "windows-msvc" },
+    { "name": "windows-msvc-debug", "configurePreset": "windows-msvc-debug" },
     { "name": "windows-mingw", "configurePreset": "windows-mingw" }
   ]
 }

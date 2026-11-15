@@ -8,8 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # --- Общие настройки (одинаково для Linux и Windows) ---
 if(MSVC)
     add_compile_options(/utf-8 /permissive- /Zc:__cplusplus)
-    # vcpkg x64-windows(-static): единый рантайм, чтобы не тянуть dll MinGW/VC
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # Рантайм оставляем динамическим (/MD, по умолчанию): Qt и vcpkg x64-windows
+    # собраны с ним же, а два разных рантайма в одном процессе — источник падений.
 else()
     add_compile_options(-Wall -Wextra)
 endif()
@@ -35,6 +35,15 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Multimedia)
 find_package(nlohmann_json QUIET)
 find_package(taglib QUIET)
 
+# Ubuntu/Debian libtag1-dev не содержит CMake-конфига (в отличие от Arch и
+# vcpkg), только pkg-config-файл taglib.pc. Пробуем его как запасной путь.
+if(NOT taglib_FOUND)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(TAGLIB QUIET IMPORTED_TARGET taglib)
+    endif()
+endif()
+
 # --- nlohmann/json (header-only) ---
 if(NOT nlohmann_json_FOUND AND AUDIOPLAYER_FETCH_DEPS)
     message(STATUS "nlohmann_json не найден -> FetchContent")
@@ -49,7 +58,7 @@ if(NOT nlohmann_json_FOUND AND AUDIOPLAYER_FETCH_DEPS)
 endif()
 
 # --- TagLib ---
-if(NOT taglib_FOUND AND AUDIOPLAYER_FETCH_DEPS)
+if(NOT taglib_FOUND AND NOT TAGLIB_FOUND AND AUDIOPLAYER_FETCH_DEPS)
     message(STATUS "taglib не найден -> FetchContent")
     include(FetchContent)
     # TagLib требует zlib
@@ -84,9 +93,9 @@ if(NOT nlohmann_json_FOUND)
     message(FATAL_ERROR "Не найден nlohmann/json. Установите его (vcpkg install nlohmann-json) "
                         "или включите -DAUDIOPLAYER_FETCH_DEPS=ON")
 endif()
-if(NOT taglib_FOUND)
-    message(FATAL_ERROR "Не найден TagLib. Установите его (vcpkg install taglib) "
-                        "или включите -DAUDIOPLAYER_FETCH_DEPS=ON")
+if(NOT taglib_FOUND AND NOT TAGLIB_FOUND)
+    message(FATAL_ERROR "Не найден TagLib. Установите его (vcpkg install taglib, "
+                        "libtag1-dev или taglib) или включите -DAUDIOPLAYER_FETCH_DEPS=ON")
 endif()
 
 # У разных дистрибутивов/способов сборки имя таргета TagLib отличается:
@@ -96,6 +105,8 @@ if(TARGET TagLib::TagLib)
     set(AUDIOPLAYER_TAGLIB_TARGET TagLib::TagLib)
 elseif(TARGET TagLib::tag)
     set(AUDIOPLAYER_TAGLIB_TARGET TagLib::tag)
+elseif(TARGET PkgConfig::TAGLIB)
+    set(AUDIOPLAYER_TAGLIB_TARGET PkgConfig::TAGLIB)
 elseif(TARGET taglib::taglib)
     set(AUDIOPLAYER_TAGLIB_TARGET taglib::taglib)
 elseif(TARGET taglib)
@@ -105,7 +116,7 @@ else()
 endif()
 
 # --- Аудиодвижок (QMediaPlayer + QAudioOutput) ---
-# Отдельная библиотека: от неё зависят и GUI, и (позже) тесты.
+# Отдельная библиотека: от неё зависит GUI.
 add_library(audio STATIC
     src/audio/AudioEngine.cpp
     include/audio/AudioEngine.hpp  # для AUTOMOC (Q_OBJECT)
@@ -113,10 +124,31 @@ add_library(audio STATIC
 target_include_directories(audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(audio PUBLIC Qt6::Core Qt6::Multimedia)
 
+# --- Библиотека треков/плейлистов (тестируемая логика) ---
+# Вынесена из app в отдельный таргет, чтобы тесты линковались с той же
+# реализацией, что и приложение. Заголовки с Q_OBJECT перечислены здесь,
+# чтобы AUTOMOC генерировал метаобъекты ровно один раз.
+add_library(library STATIC
+    src/stubs/MusicLibraryStub.cpp
+    src/stubs/PlaylistStub.cpp
+    src/stubs/ListeningStatsStub.cpp
+    include/library/Track.hpp
+    include/library/MusicLibrary.hpp
+    include/library/Playlist.hpp
+    include/stats/ListeningStats.hpp
+)
+target_include_directories(library PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(library PUBLIC
+    Qt6::Core
+    nlohmann_json::nlohmann_json
+    ${AUDIOPLAYER_TAGLIB_TARGET}
+)
+
 # --- GUI (этап 3) ---
-# Контракты-заголовки (include/...) перечислены в источниках gui:
-# AUTOMOC сканирует только заголовки из sources таргета, так moc
-# сгенерируется ровно один раз и не будет дублей символов при линковке.
+# Заголовки include/gui/*.hpp перечислены в источниках gui: AUTOMOC
+# сканирует только заголовки из sources таргета, так moc сгенерируется
+# ровно один раз и не будет дублей символов при линковке. Заголовки
+# library/ и stats/ живут в таргете library, чтобы не дублировать moc.
 add_library(gui STATIC
     src/gui/AlbumCoverWidget.cpp
     src/gui/ControlPanel.cpp
@@ -145,33 +177,23 @@ add_library(gui STATIC
     include/gui/Visualizer.hpp
     include/gui/VolumeDial.hpp
     include/gui/IVisualSource.hpp
-    include/gui/SimulatedVisualSource.hpp
-    include/library/Track.hpp
-    include/library/MusicLibrary.hpp
-    include/library/Playlist.hpp
-    include/stats/ListeningStats.hpp
 )
 target_include_directories(gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(gui PUBLIC
     audio
+    library
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia
 )
 
 # --- Приложение ---
-# src/stubs/*.cpp — временные реализации контрактов, пока команда
-# не принесла настоящие MusicLibrary/Playlist/ListeningStats.
+# src/stubs/* — временные реализации контрактов, пока команда не принесла
+# настоящие MusicLibrary/Playlist/ListeningStats. Живут в таргете library,
+# поэтому приложение линкуется только с ним.
 add_executable(app
     src/main.cpp
     assets/resources.qrc
-    src/stubs/MusicLibraryStub.cpp
-    src/stubs/PlaylistStub.cpp
-    src/stubs/ListeningStatsStub.cpp
 )
-target_link_libraries(app PRIVATE
-    gui
-    nlohmann_json::nlohmann_json
-    ${AUDIOPLAYER_TAGLIB_TARGET}
-)
+target_link_libraries(app PRIVATE gui library)
 
 # Путь к assets на случай запуска не из корня проекта
 target_compile_definitions(app PRIVATE
@@ -182,4 +204,24 @@ target_compile_definitions(app PRIVATE
 if(WIN32)
     # GUI-приложение без консольного окна (уберите WIN32, если нужен вывод в консоль)
     set_target_properties(app PROPERTIES WIN32_EXECUTABLE TRUE)
+
+    # После сборки кладём DLL Qt и плагины (в т.ч. FFmpeg-бэкенд Multimedia)
+    # рядом с app.exe — иначе он не запустится и не будет звука.
+    find_program(AUDIOPLAYER_WINDEPLOYQT windeployqt HINTS "${QT6_INSTALL_PREFIX}/bin")
+    if(AUDIOPLAYER_WINDEPLOYQT)
+        add_custom_command(TARGET app POST_BUILD
+            COMMAND "${AUDIOPLAYER_WINDEPLOYQT}" --no-translations --no-compiler-runtime
+                    --no-opengl-sw "$<TARGET_FILE:app>"
+            COMMENT "windeployqt: copying Qt DLLs next to app.exe")
+    else()
+        message(WARNING "windeployqt не найден — DLL Qt придётся копировать вручную")
+    endif()
+endif()
+
+# --- Тесты (CTest) ---
+# Тесты описаны в tests/CMakeLists.txt. BUILD_TESTING=OFF полностью
+# отключает их сборку (например, для релизной сборки приложения).
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
 endif()
