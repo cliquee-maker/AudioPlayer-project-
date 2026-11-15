@@ -16,5 +16,14 @@ target_link_libraries(test_music_library PRIVATE
     Qt6::Test
 )
 
+add_executable(test_stats_database
+    test_stats_database.cpp
+)
+target_link_libraries(test_stats_database PRIVATE
+    persistence
+    Qt6::Test
+)
+
 add_test(NAME test_database COMMAND test_database)
 add_test(NAME test_music_library COMMAND test_music_library)
+add_test(NAME test_stats_database COMMAND test_stats_database)

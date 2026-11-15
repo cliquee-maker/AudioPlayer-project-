@@ -119,7 +119,9 @@ target_link_libraries(audio PUBLIC Qt6::Core Qt6::Multimedia)
 # пока остаются заглушками из src/stubs до этапов 3–4.
 add_library(persistence STATIC
     src/db/Database.cpp
+    src/stats/StatsDatabase.cpp
     include/db/Database.hpp
+    include/stats/StatsDatabase.hpp
     src/library/MusicLibrary.cpp
     src/stubs/PlaylistStub.cpp
     src/stubs/ListeningStatsStub.cpp
