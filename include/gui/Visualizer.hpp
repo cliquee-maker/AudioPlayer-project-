@@ -9,7 +9,7 @@ class IVisualSource;
 class Visualizer : public QWidget {
     Q_OBJECT
 public:
-    enum class Mode { Bars, Oscilloscope, Authentic };
+    enum class Mode { Bars, Oscilloscope };
 
     explicit Visualizer(IVisualSource* source, QWidget* parent = nullptr);
 
@@ -28,7 +28,6 @@ protected:
 private:
     void paintBars(class QPainter& painter);
     void paintOscilloscope(class QPainter& painter);
-    void paintAuthentic(class QPainter& painter);
 
     IVisualSource* source_;
     Mode mode_ = Mode::Bars;

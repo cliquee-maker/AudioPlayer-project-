@@ -1,39 +1,23 @@
 #include "gui/TrackInfoPanel.hpp"
 
+#include "gui/AlbumCoverWidget.hpp"
 #include "library/Playlist.hpp"
 #include "library/Track.hpp"
 
 #include <QLabel>
-#include <QPainter>
 #include <QPixmap>
 #include <QVBoxLayout>
 
 namespace {
 
-QPixmap placeholderCover(int size) {
-    QPixmap pm(size, size);
-    pm.fill(QColor(70, 70, 74));
-    QPainter painter(&pm);
-    painter.setPen(QColor(160, 160, 166));
-    QFont font = painter.font();
-    font.setPixelSize(size / 2);
-    font.setBold(true);
-    painter.setFont(font);
-    painter.drawText(pm.rect(), Qt::AlignCenter, QStringLiteral("♪"));
-    return pm;
-}
-
 constexpr int kCoverSize = 240;
 
-}  // namespace 
+}  // namespace
 
 TrackInfoPanel::TrackInfoPanel(Playlist& playlist, QWidget* parent)
     : QWidget(parent), playlist_(playlist) {
-    coverLabel_ = new QLabel(this);
-    coverLabel_->setFixedSize(kCoverSize, kCoverSize);
-    coverLabel_->setAlignment(Qt::AlignCenter);
-    coverLabel_->setScaledContents(true);
-    coverLabel_->setPixmap(placeholderCover(kCoverSize));
+    cover_ = new AlbumCoverWidget(this);
+    cover_->setFixedSize(kCoverSize, kCoverSize);
 
     titleLabel_ = new QLabel(tr("—"), this);
     titleLabel_->setWordWrap(true);
@@ -57,7 +41,7 @@ TrackInfoPanel::TrackInfoPanel(Playlist& playlist, QWidget* parent)
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(6);
-    layout->addWidget(coverLabel_, 0, Qt::AlignLeft);
+    layout->addWidget(cover_, 0, Qt::AlignLeft);
     layout->addLayout(text, 1);
 
     connect(&playlist_, &Playlist::currentChanged, this, &TrackInfoPanel::refresh);
@@ -65,10 +49,18 @@ TrackInfoPanel::TrackInfoPanel(Playlist& playlist, QWidget* parent)
     refresh();
 }
 
+void TrackInfoPanel::setVinylCover(bool enabled) {
+    cover_->setVinylMode(enabled);
+}
+
+void TrackInfoPanel::setSpinning(bool spinning) {
+    cover_->setSpinning(spinning);
+}
+
 void TrackInfoPanel::refresh() {
     const Track* track = playlist_.current();
     if (track == nullptr) {
-        coverLabel_->setPixmap(placeholderCover(kCoverSize));
+        cover_->clearCover();
         titleLabel_->setText(tr("—"));
         artistLabel_->clear();
         albumLabel_->clear();
@@ -77,9 +69,9 @@ void TrackInfoPanel::refresh() {
 
     QPixmap cover;
     if (!track->coverData.isEmpty() && cover.loadFromData(track->coverData)) {
-        coverLabel_->setPixmap(cover);
+        cover_->setCover(cover);
     } else {
-        coverLabel_->setPixmap(placeholderCover(kCoverSize));
+        cover_->clearCover();
     }
 
     QString title = track->title;

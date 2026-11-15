@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace {
@@ -102,6 +103,10 @@ void SimulatedVisualSource::setTrack(const std::filesystem::path& file) {
     inputFrames_ = 0;
     nextOutputFrame_ = 0;
     decodingFailed_ = false;
+    smoothPositionMs_ = -1.0;
+    lastWaveformTickMs_ = -1;
+    lastDisplayPositionMs_ = -1;
+    displayWave_.clear();
     std::fill(bins_.begin(), bins_.end(), 0.0f);
     std::fill(waveform_.begin(), waveform_.end(), 0.0f);
 
@@ -255,27 +260,61 @@ void SimulatedVisualSource::updateBinsSynthetic(float deltaMs) const {
 }
 
 const std::vector<float>& SimulatedVisualSource::waveform() const {
+    const qint64 positionMs = advanceVisualPosition();
     if (hasRealAudio()) {
-        updateWaveformFromPcm();
+        updateWaveformFromPcm(positionMs);
     } else {
-        updateWaveformSynthetic();
+        updateWaveformSynthetic(positionMs);
     }
     return waveform_;
 }
 
-void SimulatedVisualSource::updateWaveformFromPcm() const {
-    const qint64 posSamples =
-        engine_.positionMs() * static_cast<qint64>(kAnalysisRate) / 1000;
-    constexpr double kWindowSec = 0.05;
-    const auto span = static_cast<qint64>(kAnalysisRate * kWindowSec);
-    const qint64 start = posSamples - span;
+qint64 SimulatedVisualSource::advanceVisualPosition() const {
+    const qint64 now = clock_.elapsed();
+    const qint64 engineMs = engine_.positionMs();
+
+    if (!engine_.isPlaying()) {
+        smoothPositionMs_ = static_cast<double>(engineMs);
+        lastWaveformTickMs_ = now;
+        return engineMs;
+    }
+
+    if (smoothPositionMs_ < 0.0 || lastWaveformTickMs_ < 0) {
+        smoothPositionMs_ = static_cast<double>(engineMs);
+        lastWaveformTickMs_ = now;
+        return engineMs;
+    }
+
+    qint64 delta = now - lastWaveformTickMs_;
+    lastWaveformTickMs_ = now;
+    delta = std::clamp<qint64>(delta, 0, 250);
+
+    // Перемотка/смена трека: позиция плеера ушла далеко — подстраиваемся.
+    if (std::abs(smoothPositionMs_ - static_cast<double>(engineMs)) > 300.0) {
+        smoothPositionMs_ = static_cast<double>(engineMs);
+    } else {
+        smoothPositionMs_ += static_cast<double>(delta);
+    }
+    return static_cast<qint64>(smoothPositionMs_);
+}
+
+void SimulatedVisualSource::updateWaveformFromPcm(qint64 positionMs) const {
+    // Берём окно шире экранного (100 мс вместо 50): запас нужен, чтобы
+    // сдвинуть картинку к предыдущему кадру и не дать ей «бежать».
+    constexpr int kRawSamples = kWaveformSamples * 2;
+    constexpr double kRawWindowSec = 0.10;
+    const qint64 posSamples = positionMs * static_cast<qint64>(kAnalysisRate) / 1000;
+    const auto rawSpan = static_cast<qint64>(kAnalysisRate * kRawWindowSec);
+    const qint64 start = posSamples - rawSpan;
+    const qint64 pcmSize = static_cast<qint64>(pcm_.size());
+
     const float scale =
         engine_.isPlaying() ? std::clamp(engine_.volume() / 100.0f, 0.0f, 1.0f) : 0.0f;
 
-    const qint64 pcmSize = static_cast<qint64>(pcm_.size());
-    for (int j = 0; j < kWaveformSamples; ++j) {
-        const qint64 a = start + span * j / kWaveformSamples;
-        const qint64 b = std::max(a + 1, start + span * (j + 1) / kWaveformSamples);
+    std::vector<float> raw(kRawSamples, 0.0f);
+    for (int j = 0; j < kRawSamples; ++j) {
+        const qint64 a = start + rawSpan * j / kRawSamples;
+        const qint64 b = std::max(a + 1, start + rawSpan * (j + 1) / kRawSamples);
 
         double sum = 0.0;
         int count = 0;
@@ -285,22 +324,69 @@ void SimulatedVisualSource::updateWaveformFromPcm() const {
             ++count;
         }
         const float value = count > 0 ? static_cast<float>(sum / count) : 0.0f;
-        waveform_[static_cast<std::size_t>(j)] = std::clamp(value * scale, -1.0f, 1.0f);
+        raw[static_cast<std::size_t>(j)] = std::clamp(value * scale, -1.0f, 1.0f);
     }
+
+    constexpr int kHalf = kRawSamples / 2;
+    const bool reset = displayWave_.size() != static_cast<std::size_t>(kWaveformSamples) ||
+                       lastDisplayPositionMs_ < 0 ||
+                       std::abs(positionMs - lastDisplayPositionMs_) > 250;
+    if (reset) {
+        // Перемотка/новый трек: показываем текущее окно как есть.
+        displayWave_.assign(raw.begin() + kHalf, raw.end());
+    } else {
+        // Ищем в широком окне участок, который лучше всего совпадает
+        // с предыдущим кадром. Это удерживает фазу на месте: сигнал
+        // меняется по амплитуде, но не уезжает вбок.
+        constexpr int kMaxShift = 3 * kHalf / 4;
+        int bestShift = 0;
+        double bestScore = std::numeric_limits<double>::max();
+        for (int shift = -kMaxShift; shift <= 0; ++shift) {
+            const int base = kHalf + shift;
+            double error = 0.0;
+            double targetEnergy = 0.0;
+            double candidateEnergy = 0.0;
+            for (int i = 0; i < kWaveformSamples; ++i) {
+                const double candidate = raw[static_cast<std::size_t>(base + i)];
+                const double target = displayWave_[static_cast<std::size_t>(i)];
+                const double diff = candidate - target;
+                error += diff * diff;
+                targetEnergy += target * target;
+                candidateEnergy += candidate * candidate;
+            }
+            const double score =
+                error / (std::sqrt(targetEnergy * candidateEnergy) + 1e-9);
+            if (score < bestScore) {
+                bestScore = score;
+                bestShift = shift;
+            }
+        }
+
+        const int base = kHalf + bestShift;
+        constexpr float kBlend = 0.45f;
+        for (int i = 0; i < kWaveformSamples; ++i) {
+            const float aligned = raw[static_cast<std::size_t>(base + i)];
+            float& value = displayWave_[static_cast<std::size_t>(i)];
+            value += (aligned - value) * kBlend;
+        }
+    }
+
+    waveform_ = displayWave_;
+    lastDisplayPositionMs_ = positionMs;
 }
 
-void SimulatedVisualSource::updateWaveformSynthetic() const {
-    const double t = static_cast<double>(engine_.positionMs()) / 1000.0;
+void SimulatedVisualSource::updateWaveformSynthetic(qint64 positionMs) const {
+    const double t = static_cast<double>(positionMs) / 1000.0;
     const float scale = engine_.isPlaying() ? engine_.volume() / 100.0f : 0.0f;
 
-    constexpr double kWindowSec = 0.05;
+    // Форма стоит на месте (фаза зависит только от x), а со временем
+    // медленно меняются амплитуда и наклон — без горизонтального бега.
     for (int j = 0; j < kWaveformSamples; ++j) {
         const double u = static_cast<double>(j) / (kWaveformSamples - 1);
-        const double tau = t - kWindowSec * (1.0 - u);
         const double s =
-            0.5 * std::sin(2.0 * kPi * 110.0 * tau + 1.7 * std::sin(2.0 * kPi * 0.8 * t)) +
-            0.3 * std::sin(2.0 * kPi * 220.0 * tau + 0.5 * std::sin(2.0 * kPi * 2.3 * t)) +
-            0.2 * std::sin(2.0 * kPi * 440.0 * tau + std::sin(2.0 * kPi * 5.1 * t));
+            0.5 * std::sin(2.0 * kPi * 5.0 * u + 1.7 * std::sin(2.0 * kPi * 0.8 * t)) +
+            0.3 * std::sin(2.0 * kPi * 10.0 * u + 0.5 * std::sin(2.0 * kPi * 2.3 * t)) +
+            0.2 * std::sin(2.0 * kPi * 16.0 * u + std::sin(2.0 * kPi * 5.1 * t));
         waveform_[static_cast<std::size_t>(j)] =
             std::clamp(static_cast<float>(s) * scale, -1.0f, 1.0f);
     }

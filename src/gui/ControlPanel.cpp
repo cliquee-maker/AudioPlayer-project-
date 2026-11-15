@@ -8,6 +8,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QRandomGenerator>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -72,6 +73,11 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
     volumeDial_->setValue(static_cast<int>(engine_.volume()));
     volumeDial_->setFixedSize(volumeDial_->sizeHint());
 
+    volumeSlider_ = new QSlider(Qt::Horizontal, this);
+    volumeSlider_->setRange(0, 100);
+    volumeSlider_->setValue(static_cast<int>(engine_.volume()));
+    volumeSlider_->setFixedWidth(140);
+
     auto* playbackButtons = new QVBoxLayout;
     playbackButtons->setSpacing(6);
 
@@ -110,10 +116,24 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
 
     auto* volumeLabel = new QLabel(QStringLiteral("Громкость"), this);
     volumeLabel->setAlignment(Qt::AlignCenter);
+
+    // Высота области фиксирована по размеру ручки, чтобы нижняя панель
+    // не «прыгала» при переключении вида регулятора.
+    auto* volumeContent = new QWidget(this);
+    volumeContent->setFixedSize(qMax(volumeDial_->width(), volumeSlider_->width()),
+                                volumeDial_->height());
+    auto* volumeContentLayout = new QVBoxLayout(volumeContent);
+    volumeContentLayout->setContentsMargins(0, 0, 0, 0);
+    volumeContentLayout->setSpacing(0);
+    volumeContentLayout->addStretch(1);
+    volumeContentLayout->addWidget(volumeDial_, 0, Qt::AlignHCenter);
+    volumeContentLayout->addWidget(volumeSlider_, 0, Qt::AlignHCenter);
+    volumeContentLayout->addStretch(1);
+
     auto* volumeBox = new QVBoxLayout;
-    volumeBox->setSpacing(2);
+    volumeBox->setSpacing(4);
     volumeBox->addWidget(volumeLabel);
-    volumeBox->addWidget(volumeDial_, 0, Qt::AlignHCenter);
+    volumeBox->addWidget(volumeContent, 0, Qt::AlignHCenter);
 
     auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
@@ -135,11 +155,12 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
 
     connect(seekSlider_, &QSlider::sliderMoved, this, &ControlPanel::onSeekMoved);
     connect(seekSlider_, &QSlider::sliderReleased, this, &ControlPanel::onSeekReleased);
-    connect(volumeDial_, &VolumeDial::valueChanged, this, [this](int value) {
-        engine_.setVolume(static_cast<float>(value));
-        volumeDial_->setToolTip(tr("Громкость: %1%").arg(value));
-    });
-    volumeDial_->setToolTip(tr("Громкость: %1%").arg(volumeDial_->value()));
+    connect(volumeDial_, &VolumeDial::valueChanged, this,
+            &ControlPanel::onVolumeChanged);
+    connect(volumeSlider_, &QSlider::valueChanged, this,
+            &ControlPanel::onVolumeChanged);
+    onVolumeChanged(volumeDial_->value());
+    setVolumeControlStyle(false);  // по умолчанию — обычный ползунок
 
     connect(repeatBtn_, &QToolButton::clicked, this, &ControlPanel::onRepeatClicked);
     connect(effectBtn_, &QToolButton::clicked, this,
@@ -154,6 +175,16 @@ ControlPanel::ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* par
 
     refreshRepeatButton();
     refreshTimeLabel(0);
+
+    // Фиксируем высоту всей нижней панели, чтобы она не менялась
+    // при переключении между ручкой и ползунком.
+    layout->activate();
+    setFixedHeight(sizeHint().height());
+}
+
+void ControlPanel::setVolumeControlStyle(bool useDial) {
+    volumeDial_->setVisible(useDial);
+    volumeSlider_->setVisible(!useDial);
 }
 
 void ControlPanel::next() {
@@ -213,6 +244,18 @@ void ControlPanel::onSeekReleased() {
     engine_.seek(seekSlider_->value());
 }
 
+void ControlPanel::onVolumeChanged(int value) {
+    const QSignalBlocker dialBlocker(volumeDial_);
+    const QSignalBlocker sliderBlocker(volumeSlider_);
+    volumeDial_->setValue(value);
+    volumeSlider_->setValue(value);
+    engine_.setVolume(static_cast<float>(value));
+
+    const QString tip = tr("Громкость: %1%").arg(value);
+    volumeDial_->setToolTip(tip);
+    volumeSlider_->setToolTip(tip);
+}
+
 void ControlPanel::onRepeatClicked() {
     switch (playlist_.repeat()) {
     case Playlist::Repeat::Off:
@@ -238,9 +281,9 @@ void ControlPanel::setMuted(bool muted) {
     if (muted) {
         volumeBeforeMute_ = volumeDial_->value();
         if (volumeBeforeMute_ <= 0) volumeBeforeMute_ = 100;
-        volumeDial_->setValue(0);
+        onVolumeChanged(0);
     } else {
-        volumeDial_->setValue(volumeBeforeMute_);
+        onVolumeChanged(volumeBeforeMute_);
     }
 }
 

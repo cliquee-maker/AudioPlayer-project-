@@ -15,6 +15,8 @@ public:
     ControlPanel(AudioEngine& engine, Playlist& playlist, QWidget* parent = nullptr,
                  QWidget* visualizer = nullptr);
 
+    void setVolumeControlStyle(bool useDial);
+
 public slots:
     void next();
     void prev();
@@ -32,6 +34,7 @@ private slots:
     void onSeekMoved(int ms);
     void onSeekReleased();
     void onRepeatClicked();
+    void onVolumeChanged(int value);
 
 private:
     void refreshRepeatButton();
@@ -49,6 +52,7 @@ private:
     QToolButton* shuffleBtn_;
     QSlider* seekSlider_;
     VolumeDial* volumeDial_;
+    QSlider* volumeSlider_;
     QLabel* timeLabel_;
     bool muted_ = false;
     int volumeBeforeMute_ = 100;

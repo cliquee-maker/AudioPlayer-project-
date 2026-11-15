@@ -150,22 +150,28 @@ target_link_libraries(library PUBLIC
 # ровно один раз и не будет дублей символов при линковке. Заголовки
 # library/ и stats/ живут в таргете library, чтобы не дублировать moc.
 add_library(gui STATIC
+    src/gui/AlbumCoverWidget.cpp
     src/gui/ControlPanel.cpp
     src/gui/LibraryModel.cpp
     src/gui/LibraryPanel.cpp
     src/gui/MainWindow.cpp
     src/gui/LyricsPanel.cpp
+    src/gui/QueuePanel.cpp
+    src/gui/RecommendationsPanel.cpp
     src/gui/SimulatedVisualSource.cpp
     src/gui/TrackInfoPanel.cpp
     src/gui/Visualizer.cpp
     src/gui/VolumeDial.cpp
     # Заголовки лежат в include/gui/, а не рядом с .cpp — перечисляем явно,
     # иначе AUTOMOC их не найдёт и не будет vtable (Q_OBJECT).
+    include/gui/AlbumCoverWidget.hpp
     include/gui/ControlPanel.hpp
     include/gui/LibraryModel.hpp
     include/gui/LibraryPanel.hpp
     include/gui/MainWindow.hpp
     include/gui/LyricsPanel.hpp
+    include/gui/QueuePanel.hpp
+    include/gui/RecommendationsPanel.hpp
     include/gui/SimulatedVisualSource.hpp
     include/gui/TrackInfoPanel.hpp
     include/gui/Visualizer.hpp
@@ -180,7 +186,13 @@ target_link_libraries(gui PUBLIC
 )
 
 # --- Приложение ---
-add_executable(app src/main.cpp)
+# src/stubs/* — временные реализации контрактов, пока команда не принесла
+# настоящие MusicLibrary/Playlist/ListeningStats. Живут в таргете library,
+# поэтому приложение линкуется только с ним.
+add_executable(app
+    src/main.cpp
+    assets/resources.qrc
+)
 target_link_libraries(app PRIVATE gui library)
 
 # Путь к assets на случай запуска не из корня проекта

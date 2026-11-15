@@ -4,6 +4,8 @@
 #include "gui/ControlPanel.hpp"
 #include "gui/LibraryPanel.hpp"
 #include "gui/LyricsPanel.hpp"
+#include "gui/QueuePanel.hpp"
+#include "gui/RecommendationsPanel.hpp"
 #include "gui/TrackInfoPanel.hpp"
 #include "gui/Visualizer.hpp"
 #include "library/MusicLibrary.hpp"
@@ -12,15 +14,21 @@
 #include "stats/ListeningStats.hpp"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QKeySequence>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSettings>
+#include <QSpacerItem>
+#include <QStackedWidget>
 #include <QStyle>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QVBoxLayout>
 
 MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& playlist,
@@ -50,7 +58,13 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
 
     // Библиотека занимает пустой участок верхнего ряда (слева),
     // справа — колонка «обложка + инфо» и под ней текст песни.
+    // «Рекомендации» — вторая страница того же участка: каталог песен
+    // скрывается, вместо него показываются папки и текст из API.
     auto* libraryPanel = new LibraryPanel(library_, central);
+    auto* recommendationsPanel = new RecommendationsPanel(central);
+    auto* contentStack = new QStackedWidget(central);
+    contentStack->addWidget(libraryPanel);
+    contentStack->addWidget(recommendationsPanel);
 
     // --- Меню в левом верхнем углу окна ---
     auto* musicMenu = menuBar()->addMenu(tr("Музыка"));
@@ -158,10 +172,71 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
     connect(clearPlaylistAction, &QAction::triggered, &playlist_, &Playlist::clear);
 
     auto* serviceMenu = menuBar()->addMenu(tr("Сервис"));
+    auto* recommendationsAction = serviceMenu->addAction(tr("Рекомендации"));
+    recommendationsAction->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+    recommendationsAction->setCheckable(true);
+    recommendationsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+R")));
+    connect(recommendationsAction, &QAction::toggled, this, [contentStack](bool show) {
+        contentStack->setCurrentIndex(show ? 1 : 0);
+    });
+    connect(recommendationsPanel, &RecommendationsPanel::backRequested, recommendationsAction,
+            [recommendationsAction] { recommendationsAction->setChecked(false); });
+
+    serviceMenu->addSeparator();
     auto* nextEffectAction = serviceMenu->addAction(tr("Следующий эффект визуализации"));
     connect(nextEffectAction, &QAction::triggered, visualizer_, &Visualizer::cycleMode);
+
     auto* equalizerAction = serviceMenu->addAction(tr("Эквалайзер…"));
-    equalizerAction->setEnabled(false);
+    equalizerAction->setIcon(style()->standardIcon(QStyle::SP_MediaVolume));
+    connect(equalizerAction, &QAction::triggered, this, [this] {
+        QMessageBox::information(this, tr("Эквалайзер"),
+                                 tr("Эквалайзер пока не реализован."));
+    });
+
+    auto* personalizationMenu = menuBar()->addMenu(tr("Персонализация"));
+    auto* volumeStyleGroup = new QActionGroup(this);
+    volumeStyleGroup->setExclusive(true);
+
+    auto* dialAction = personalizationMenu->addAction(tr("Круглая ручка громкости"));
+    dialAction->setCheckable(true);
+    auto* sliderAction = personalizationMenu->addAction(tr("Обычный ползунок громкости"));
+    sliderAction->setCheckable(true);
+    volumeStyleGroup->addAction(dialAction);
+    volumeStyleGroup->addAction(sliderAction);
+
+    QSettings settings;
+    const bool useDial =
+        settings.value(QStringLiteral("personalization/volumeDial"), false).toBool();
+    (useDial ? dialAction : sliderAction)->setChecked(true);
+    control_->setVolumeControlStyle(useDial);
+
+    connect(volumeStyleGroup, &QActionGroup::triggered, this,
+            [this, dialAction](QAction* action) {
+                const bool dial = (action == dialAction);
+                control_->setVolumeControlStyle(dial);
+                QSettings().setValue(QStringLiteral("personalization/volumeDial"), dial);
+            });
+
+    personalizationMenu->addSeparator();
+    auto* coverStyleGroup = new QActionGroup(this);
+    coverStyleGroup->setExclusive(true);
+
+    auto* staticCoverAction = personalizationMenu->addAction(tr("Обычная обложка"));
+    staticCoverAction->setCheckable(true);
+    auto* vinylCoverAction = personalizationMenu->addAction(tr("Крутящийся винил (обложка)"));
+    vinylCoverAction->setCheckable(true);
+    coverStyleGroup->addAction(staticCoverAction);
+    coverStyleGroup->addAction(vinylCoverAction);
+
+    const bool useVinylCover =
+        settings.value(QStringLiteral("personalization/vinylCover"), false).toBool();
+    (useVinylCover ? vinylCoverAction : staticCoverAction)->setChecked(true);
+    connect(coverStyleGroup, &QActionGroup::triggered, this,
+            [this, vinylCoverAction](QAction* action) {
+                const bool vinyl = (action == vinylCoverAction);
+                if (trackInfo_ != nullptr) trackInfo_->setVinylCover(vinyl);
+                QSettings().setValue(QStringLiteral("personalization/vinylCover"), vinyl);
+            });
 
     auto* helpMenu = menuBar()->addMenu(tr("Справка"));
     auto* aboutAction = helpMenu->addAction(tr("О программе"));
@@ -179,12 +254,84 @@ MainWindow::MainWindow(AudioEngine& engine, MusicLibrary& library, Playlist& pla
     auto* infoColumn = new QVBoxLayout(infoBox);
     infoColumn->setContentsMargins(0, 0, 0, 0);
     infoColumn->setSpacing(8);
-    infoColumn->addWidget(new TrackInfoPanel(playlist_, infoBox), 0);
-    infoColumn->addWidget(new LyricsPanel(infoBox), 1);
+    trackInfo_ = new TrackInfoPanel(playlist_, infoBox);
+    infoColumn->addWidget(trackInfo_, 0);
+
+    // Под треком — вкладки «Текст песни» / «Очередь». Свернуть/развернуть
+    // блок можно через контекстное меню по правой кнопке.
+    auto* detailsPlaceholder =
+        new QLabel(QStringLiteral("▸  ") + tr("Текст песни / Очередь"), infoBox);
+    detailsPlaceholder->setStyleSheet(QStringLiteral("color: gray;"));
+    detailsPlaceholder->setToolTip(tr("ПКМ — развернуть"));
+    detailsPlaceholder->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    auto* detailTabs = new QTabWidget(infoBox);
+    detailTabs->setDocumentMode(true);
+    auto* lyricsPanel = new LyricsPanel(detailTabs);
+    auto* queuePanel = new QueuePanel(detailTabs);
+    detailTabs->addTab(lyricsPanel, tr("Текст песни"));
+    detailTabs->addTab(queuePanel, tr("Очередь"));
+
+    auto* detailTabBar = detailTabs->tabBar();
+    detailTabBar->setToolTip(tr("ПКМ — свернуть"));
+    detailTabBar->setContextMenuPolicy(Qt::CustomContextMenu);
+    detailTabs->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    infoColumn->addWidget(detailsPlaceholder, 0);
+    infoColumn->addWidget(detailTabs, 1);
+    // Когда вкладки свёрнуты, свободное место забирает этот распорка,
+    // а заголовок остаётся сразу под информацией о треке.
+    infoColumn->addSpacerItem(
+        new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
+
+    // По умолчанию блок всегда развёрнут при запуске.
+    detailsPlaceholder->setVisible(false);
+    detailTabs->setVisible(true);
+
+    const auto applyDetailsExpanded = [detailsPlaceholder, detailTabs](bool expanded) {
+        detailTabs->setVisible(expanded);
+        detailsPlaceholder->setVisible(!expanded);
+    };
+
+    auto* detailsMenu = new QMenu(this);
+    QAction* detailsToggleAction = detailsMenu->addAction(tr("Свернуть"));
+
+    const auto showDetailsMenu = [detailsMenu, detailsToggleAction, detailTabs,
+                                  applyDetailsExpanded](const QPoint& globalPos) {
+        const bool expanded = detailTabs->isVisible();
+        detailsToggleAction->setText(expanded ? tr("Свернуть") : tr("Развернуть"));
+        if (detailsMenu->exec(globalPos) != detailsToggleAction) return;
+        applyDetailsExpanded(!expanded);
+    };
+
+    connect(detailsPlaceholder, &QWidget::customContextMenuRequested, this,
+            [showDetailsMenu, detailsPlaceholder](const QPoint& pos) {
+                showDetailsMenu(detailsPlaceholder->mapToGlobal(pos));
+            });
+    connect(detailTabBar, &QWidget::customContextMenuRequested, this,
+            [showDetailsMenu, detailTabBar](const QPoint& pos) {
+                showDetailsMenu(detailTabBar->mapToGlobal(pos));
+            });
+    connect(detailTabs, &QWidget::customContextMenuRequested, this,
+            [showDetailsMenu, detailTabs](const QPoint& pos) {
+                showDetailsMenu(detailTabs->mapToGlobal(pos));
+            });
+    connect(lyricsPanel, &LyricsPanel::collapseRequested, this,
+            [applyDetailsExpanded] { applyDetailsExpanded(false); });
+    connect(queuePanel, &QueuePanel::collapseRequested, this,
+            [applyDetailsExpanded] { applyDetailsExpanded(false); });
+
+    // Обложка-винил крутится только во время воспроизведения.
+    trackInfo_->setVinylCover(
+        settings.value(QStringLiteral("personalization/vinylCover"), false).toBool());
+    trackInfo_->setSpinning(engine_.isPlaying());
+    connect(&engine_, &AudioEngine::stateChanged, trackInfo_, [this](bool playing) {
+        trackInfo_->setSpinning(playing);
+    });
 
     auto* topRow = new QHBoxLayout;
     topRow->setSpacing(10);
-    topRow->addWidget(libraryPanel, 1);
+    topRow->addWidget(contentStack, 1);
     topRow->addWidget(infoBox, 0);
 
     layout->addLayout(topRow, 1);
